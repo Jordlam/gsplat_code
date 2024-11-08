@@ -34,6 +34,8 @@ class CamScene:
                     w /= scale
             else:
                 scene_info = sceneLoadTypeCallbacks["Colmap_hw"](source_path, h, w, None, False)
+        elif os.path.exists(os.path.join(source_path, "dataset.json")):
+                scene_info = sceneLoadTypeCallbacks["nerfies"](source_path, False)
 
         else:
             assert False, "Could not recognize scene type!"

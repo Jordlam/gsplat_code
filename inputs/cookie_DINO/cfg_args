@@ -1,0 +1,1 @@
+Namespace(sh_degree=3, source_path='/home/jordlam/DGD-Dynamic-3D-Gaussians-Distillation/data/split-cookie', model_path='output/cookie_DINO', Lseg_model_path='', images='images', resolution=-1, white_background=False, data_device='cuda', eval=False, load2gpu_on_the_fly=False, is_blender=False, is_6dof=False, fundation_model='DINOv2', semantic_dimension=384)

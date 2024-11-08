@@ -252,7 +252,9 @@ class DGE(BaseLift3DSystem):
                         "height": self.trainer.datamodule.train_dataset.height,
                         "width": self.trainer.datamodule.train_dataset.width,
                     }
+                    # print('before cur batch *****')
                     out = self(cur_batch)["comp_rgb"]
+                    # exit(-1)
                     out_to_save = (
                             out[0].cpu().detach().numpy().clip(0.0, 1.0) * 255.0
                     ).astype(np.uint8)
@@ -593,8 +595,13 @@ class DGE(BaseLift3DSystem):
         distances = [np.arccos(np.clip(np.dot(most_left_vecotr, cam.R[:, 2]), 0, 1)) for cam in cams]
         sorted_cams = [cam for _, cam in sorted(zip(distances, cams), key=lambda pair: pair[0])]
         reference_axis = np.cross(most_left_vecotr, sorted_cams[1].R[:, 2])
-        distances_with_sign = [np.arccos(np.dot(most_left_vecotr, cam.R[:, 2])) if np.dot(reference_axis,  np.cross(most_left_vecotr, cam.R[:, 2])) >= 0 else 2 * np.pi - np.arccos(np.dot(most_left_vecotr, cam.R[:, 2])) for cam in cams]
-        
+        # print("Dotting")
+        # print([np.dot(reference_axis, np.cross(most_left_vecotr, cam.R[:, 2])) for cam in cams])
+        print("input to arcos", [np.dot(most_left_vecotr, cam.R[:, 2]) for cam in cams])
+        # input = [0 * l for l in distances_with_sign]
+        distances_with_sign = [np.arccos(0 * np.dot(most_left_vecotr, cam.R[:, 2])) if np.dot(reference_axis,  np.cross(most_left_vecotr, cam.R[:, 2])) >= 0 else 2 * np.pi - np.arccos(0 * np.dot(most_left_vecotr, cam.R[:, 2])) for cam in cams]
+        distances_with_sign = [0 * l for l in distances_with_sign]
+
         sorted_cam_idx = [idx for _, idx in sorted(zip(distances_with_sign, range(len(cams))), key=lambda pair: pair[0])]
 
         return sorted_cam_idx
@@ -628,7 +635,10 @@ class DGE(BaseLift3DSystem):
                 if cur_index not in self.edit_frames:
                     batch_index[img_index] = self.view_list[img_index]
 
+        print("Start foward trainig)step")
         out = self(batch, local=self.cfg.local_edit)
+        # exit(-1)
+        print("Finished")
 
         images = out["comp_rgb"]
         mask = out["masks"].unsqueeze(-1)
@@ -648,11 +658,13 @@ class DGE(BaseLift3DSystem):
                         and self.global_step % self.cfg.per_editing_step == 0
                 )) and 'dge' not in str(self.cfg.guidance_type) and not self.cfg.loss.use_sds:
                     print(self.cfg.guidance_type)
+                    print("self 1")
                     result = self.guidance(
                         images[img_index][None],
                         self.origin_frames[cur_index],
                         prompt_utils,
                     )
+                    print("self 1 finished")
                  
                     self.edit_frames[cur_index] = result["edit_images"].detach().clone()
 
@@ -685,15 +697,17 @@ class DGE(BaseLift3DSystem):
         if self.cfg.loss.use_sds:
             prompt_utils = self.prompt_processor()
             self.guidance.cfg.use_sds = True
+            print("self 2")
             guidance_out = self.guidance(
                 out["comp_rgb"],
                 torch.concatenate(
                     [self.origin_frames[idx] for idx in batch_index], dim=0
                 ),
-                prompt_utils)  
+                prompt_utils) 
+            print("self 3")
             loss += guidance_out["loss_sds"] * self.cfg.loss.lambda_sds 
 
         for name, value in self.cfg.loss.items():
             self.log(f"train_params/{name}", self.C(value))
-    
+        print("we are here")
         return {"loss": loss}

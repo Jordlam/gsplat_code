@@ -62,7 +62,7 @@ class _RasterizeGaussians(torch.autograd.Function):
         raster_settings,
     ):
         # Restructure arguments the way that the C++ lib expects them
-        args = (
+        args = [
             raster_settings.bg,
             means3D,
             colors_precomp,
@@ -82,7 +82,8 @@ class _RasterizeGaussians(torch.autograd.Function):
             raster_settings.campos,
             raster_settings.prefiltered,
             raster_settings.debug,
-        )
+        ]
+        args = [t.to(torch.float32).to("cuda") if torch.is_tensor(t) and t.dtype != torch.int else t for t in args]
 
         # Invoke C++/CUDA rasterizer
         if raster_settings.debug:
@@ -152,7 +153,7 @@ class _RasterizeGaussians(torch.autograd.Function):
         ) = ctx.saved_tensors
 
         # Restructure args as C++ method expects them
-        args = (
+        args = [
             raster_settings.bg,
             means3D,
             radii,
@@ -174,7 +175,12 @@ class _RasterizeGaussians(torch.autograd.Function):
             binningBuffer,
             imgBuffer,
             raster_settings.debug,
-        )
+        ]
+        args = [t.to(torch.float32).to("cuda") if torch.is_tensor(t) and t.dtype != torch.int else t for t in args]
+        # debug
+        for i, a in enumerate(args):
+            if torch.is_tensor(a):
+                print(i, a.get_device())
 
         # Compute gradients for relevant tensors by invoking backward method
         if raster_settings.debug:
@@ -337,7 +343,7 @@ class GaussianRasterizer(nn.Module):
         if cov3Ds_precomp is None:
             cov3Ds_precomp = torch.Tensor([]).to(torch.float32).to("cuda")
 
-        args = (
+        args = [
             raster_settings.bg,
             means3D,
             weights,
@@ -359,6 +365,7 @@ class GaussianRasterizer(nn.Module):
             image_weights,
             cnt,
             raster_settings.debug,
-        )
+        ]
+        args = [t.to(torch.float32).to("cuda") if torch.is_tensor(t) and t.dtype != torch.int else t for t in args]
 
         _C.apply_weights(*args)
