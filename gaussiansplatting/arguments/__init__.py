@@ -86,6 +86,8 @@ class OptimizationParams(ParamGroup):
         self.densify_from_iter = 500
         self.densify_until_iter = 15_000
         self.densify_grad_threshold = 0.0002
+        self.loss_reduce = 0.5 ###
+        self.semantic_feature_lr = 0.0025 ###
         super().__init__(parser, "Optimization Parameters")
 
 # class EditOptimizationParams(ParamGroup):

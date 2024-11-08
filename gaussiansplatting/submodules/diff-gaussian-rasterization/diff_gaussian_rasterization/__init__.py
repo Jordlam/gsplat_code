@@ -28,23 +28,29 @@ def rasterize_gaussians(
     means2D,
     sh,
     colors_precomp,
+    semantic_feature, ###
     opacities,
     scales,
     rotations,
     cov3Ds_precomp,
     raster_settings,
 ):
-    return _RasterizeGaussians.apply(
+    # apply calls forward
+    print("About to .apply")
+    apply_results = _RasterizeGaussians.apply(
         means3D,
         means2D,
         sh,
         colors_precomp,
+        semantic_feature, ###
         opacities,
         scales,
         rotations,
         cov3Ds_precomp,
         raster_settings,
     )
+    print("We completed .apply")
+    return apply_results
 
 
 class _RasterizeGaussians(torch.autograd.Function):
@@ -55,6 +61,7 @@ class _RasterizeGaussians(torch.autograd.Function):
         means2D,
         sh,
         colors_precomp,
+        semantic_feature, ###
         opacities,
         scales,
         rotations,
@@ -66,6 +73,7 @@ class _RasterizeGaussians(torch.autograd.Function):
             raster_settings.bg,
             means3D,
             colors_precomp,
+            semantic_feature, ###
             opacities,
             scales,
             rotations,
@@ -86,6 +94,7 @@ class _RasterizeGaussians(torch.autograd.Function):
 
         # Invoke C++/CUDA rasterizer
         if raster_settings.debug:
+            print("We are in debug mode.")
             cpu_args = cpu_deep_copy_tuple(
                 args
             )  # Copy them before they can be corrupted
@@ -93,6 +102,7 @@ class _RasterizeGaussians(torch.autograd.Function):
                 (
                     num_rendered,
                     color,
+                    feature_map, ###
                     depth,
                     radii,
                     geomBuffer,
@@ -106,9 +116,11 @@ class _RasterizeGaussians(torch.autograd.Function):
                 )
                 raise ex
         else:
+            print("We are not in debug mode.")
             (
                 num_rendered,
                 color,
+                feature_map, ###
                 depth,
                 radii,
                 geomBuffer,
@@ -121,6 +133,7 @@ class _RasterizeGaussians(torch.autograd.Function):
         ctx.num_rendered = num_rendered
         ctx.save_for_backward(
             colors_precomp,
+            semantic_feature, ###
             means3D,
             scales,
             rotations,
@@ -131,15 +144,17 @@ class _RasterizeGaussians(torch.autograd.Function):
             binningBuffer,
             imgBuffer,
         )
-        return color, radii, depth
+        # return color, radii, depth
+        return color, radii, depth, feature_map
 
     @staticmethod
-    def backward(ctx, grad_out_color, grad_radii, grad_depth):
+    def backward(ctx, grad_out_color, grad_radii, grad_depth, grad_out_feature):
         # Restore necessary values from context
         num_rendered = ctx.num_rendered
         raster_settings = ctx.raster_settings
         (
             colors_precomp,
+            semantic_feature, ###
             means3D,
             scales,
             rotations,
@@ -157,6 +172,7 @@ class _RasterizeGaussians(torch.autograd.Function):
             means3D,
             radii,
             colors_precomp,
+            semantic_feature, ###
             scales,
             rotations,
             raster_settings.scale_modifier,
@@ -166,6 +182,7 @@ class _RasterizeGaussians(torch.autograd.Function):
             raster_settings.tanfovx,
             raster_settings.tanfovy,
             grad_out_color,
+            grad_out_feature, ###
             sh,
             raster_settings.sh_degree,
             raster_settings.campos,
@@ -185,6 +202,7 @@ class _RasterizeGaussians(torch.autograd.Function):
                 (
                     grad_means2D,
                     grad_colors_precomp,
+                    grad_semantic_feature, ###
                     grad_opacities,
                     grad_means3D,
                     grad_cov3Ds_precomp,
@@ -202,6 +220,7 @@ class _RasterizeGaussians(torch.autograd.Function):
             (
                 grad_means2D,
                 grad_colors_precomp,
+                grad_semantic_feature, ###
                 grad_opacities,
                 grad_means3D,
                 grad_cov3Ds_precomp,
@@ -215,6 +234,7 @@ class _RasterizeGaussians(torch.autograd.Function):
             grad_means2D,
             grad_sh,
             grad_colors_precomp,
+            grad_semantic_feature, ###
             grad_opacities,
             grad_scales,
             grad_rotations,
@@ -261,11 +281,13 @@ class GaussianRasterizer(nn.Module):
         means2D,
         opacities,
         shs=None,
+        semantic_feature=None, ###
         colors_precomp=None,
         scales=None,
         rotations=None,
         cov3D_precomp=None,
     ):
+        print("Fixing settings.")
         raster_settings = self.raster_settings
 
         if (shs is None and colors_precomp is None) or (
@@ -293,7 +315,9 @@ class GaussianRasterizer(nn.Module):
             rotations = torch.Tensor([]).to(torch.float32).to("cuda")
         if cov3D_precomp is None:
             cov3D_precomp = torch.Tensor([]).to(torch.float32).to("cuda")
-
+        
+        # Do extra torch conversions here?
+        print("About to rasterize.")
 
         # Invoke C++/CUDA rasterization routine
         return rasterize_gaussians(
@@ -301,6 +325,7 @@ class GaussianRasterizer(nn.Module):
             means2D,
             shs,
             colors_precomp,
+            semantic_feature, ###
             opacities,
             scales,
             rotations,
@@ -337,6 +362,7 @@ class GaussianRasterizer(nn.Module):
         if cov3Ds_precomp is None:
             cov3Ds_precomp = torch.Tensor([]).to(torch.float32).to("cuda")
 
+        ### DO we use semantic_feature here???
         args = (
             raster_settings.bg,
             means3D,

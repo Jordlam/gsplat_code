@@ -1,0 +1,11 @@
+*.png
+*.json
+*.pt
+*.pyc
+*.ply
+*.pth
+*.yaml
+*.ckpt
+*.csv
+*.txt
+*outputs/

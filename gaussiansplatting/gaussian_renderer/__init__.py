@@ -47,6 +47,7 @@ def render(
     pc,
     pipe,
     bg_color: torch.Tensor,
+    # d_xyz, d_rotation, d_scaling, is_6dof=False, ###
     scaling_modifier=1.0,
     override_color=None,
 ):
@@ -125,28 +126,43 @@ def render(
         shs = shs.float()
     else:
         colors_precomp = override_color
+    semantic_feature = pc.get_semantic_feature
+    print(semantic_feature.get_device())
+    print("The bug is about to start from here")
 
     # Rasterize visible Gaussians to image, obtain their radii (on screen).
     # import pdb; pdb.set_trace()
-    rendered_image, radii, depth = rasterizer(
+    rendered_image, radii, depth, feature_map = rasterizer(
         means3D=means3D.float(),
         means2D=means2D.float(),
         shs=shs,
         colors_precomp=colors_precomp,
+        semantic_feature=semantic_feature, ###
         opacities=opacity.float(),
         scales=scales.float(),
         rotations=rotations.float(),
         cov3D_precomp=cov3D_precomp,
     )
+    print(rendered_image.get_device())
+    print(screenspace_points.get_device())
+    print(radii.get_device())
+    print(depth.get_device())
+    print(feature_map.get_device())
 
     # Those Gaussians that were frustum culled or had a radius of 0 were not visible.
     # They will be excluded from value updates used in the splitting criteria.
+
+    # We cannot print (radii > 0)
+    # print(radii > 0)
+    # print("Trying to print device", feature_map.get_device())
     return {
         "render": rendered_image,
         "viewspace_points": screenspace_points,
+        # "visibility_filter": radii,
         "visibility_filter": radii > 0,
         "radii": radii,
         "depth_3dgs": depth,
+        'feature_map': feature_map
     }
 
 
@@ -158,6 +174,7 @@ def point_cloud_render(
     xyz,
     pipe,
     bg_color: torch.Tensor,
+    # d_xyz, d_rotation, d_scaling, is_6dof=False, ###
     scaling_modifier=1.0,
     override_color=None,
 ):
@@ -225,14 +242,16 @@ def point_cloud_render(
     # else:
     #     colors_precomp = override_color
     colors_precomp = torch.ones_like(xyz[..., 0:1]).repeat(1, 3)
+    semantic_feature = None
 
     # Rasterize visible Gaussians to image, obtain their radii (on screen).
     # import pdb; pdb.set_trace()
-    rendered_image, radii, depth = rasterizer(
+    rendered_image, radii, depth, feature_map = rasterizer(
         means3D=means3D.float(),
         means2D=means2D.float(),
         shs=shs,
         colors_precomp=colors_precomp,
+        semantic_feature=semantic_feature,
         opacities=opacity.float(),
         scales=scales.float(),
         rotations=rotations.float(),
@@ -247,4 +266,5 @@ def point_cloud_render(
         "visibility_filter": radii > 0,
         "radii": radii,
         "depth_3dgs": depth,
+        "feature_map": feature_map
     }

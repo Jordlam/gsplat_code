@@ -142,6 +142,7 @@ CudaRasterizer::GeometryState::fromChunk(char *&chunk, size_t P) {
   obtain(chunk, geom.cov3D, P * 6, 128);
   obtain(chunk, geom.conic_opacity, P, 128);
   obtain(chunk, geom.rgb, P * 3, 128);
+  obtain(chunk, geom.semantic_feature, P * NUM_SEMANTIC_CHANNELS, 128);
   obtain(chunk, geom.tiles_touched, P, 128);
   cub::DeviceScan::InclusiveSum(nullptr, geom.scan_size, geom.tiles_touched,
                                 geom.tiles_touched, P);
@@ -181,11 +182,11 @@ int CudaRasterizer::Rasterizer::forward(
     std::function<char *(size_t)> binningBuffer,
     std::function<char *(size_t)> imageBuffer, const int P, int D, int M,
     const float *background, const int width, int height, const float *means3D,
-    const float *shs, const float *colors_precomp, const float *opacities,
+    const float *shs, const float *colors_precomp, const float *semantic_feature, const float *opacities,
     const float *scales, const float scale_modifier, const float *rotations,
     const float *cov3D_precomp, const float *viewmatrix,
     const float *projmatrix, const float *cam_pos, const float tan_fovx,
-    float tan_fovy, const bool prefiltered, float *out_color, float *out_depth,
+    float tan_fovy, const bool prefiltered, float *out_color, float *out_depth, float* out_feature_map,
     int *radii, bool debug) {
   const float focal_y = height / (2.0f * tan_fovy);
   const float focal_x = width / (2.0f * tan_fovx);
@@ -275,10 +276,10 @@ int CudaRasterizer::Rasterizer::forward(
       colors_precomp != nullptr ? colors_precomp : geomState.rgb;
   CHECK_CUDA(FORWARD::render(tile_grid, block, imgState.ranges,
                              binningState.point_list, width, height,
-                             geomState.means2D, feature_ptr, geomState.depths,
-                             geomState.conic_opacity, imgState.accum_alpha,
+                             geomState.means2D, feature_ptr, semantic_feature,
+                             geomState.depths, geomState.conic_opacity, imgState.accum_alpha,
                              imgState.n_contrib, background, out_color,
-                             out_depth),
+                             out_depth, out_feature_map),
              debug)
 
   return num_rendered;
@@ -289,13 +290,13 @@ int CudaRasterizer::Rasterizer::forward(
 void CudaRasterizer::Rasterizer::backward(
     const int P, int D, int M, int R, const float *background, const int width,
     int height, const float *means3D, const float *shs,
-    const float *colors_precomp, const float *scales,
+    const float *colors_precomp, const float* semantic_feature, const float *scales,
     const float scale_modifier, const float *rotations,
     const float *cov3D_precomp, const float *viewmatrix,
     const float *projmatrix, const float *campos, const float tan_fovx,
     float tan_fovy, const int *radii, char *geom_buffer, char *binning_buffer,
-    char *img_buffer, const float *dL_dpix, float *dL_dmean2D, float *dL_dconic,
-    float *dL_dopacity, float *dL_dcolor, float *dL_dmean3D, float *dL_dcov3D,
+    char *img_buffer, const float *dL_dpix, const float* dL_dfeaturepix, float *dL_dmean2D, float *dL_dconic,
+    float *dL_dopacity, float *dL_dcolor, float* dL_dsemantic_feature, float *dL_dmean3D, float *dL_dcov3D,
     float *dL_dsh, float *dL_dscale, float *dL_drot, bool debug) {
   GeometryState geomState = GeometryState::fromChunk(geom_buffer, P);
   BinningState binningState = BinningState::fromChunk(binning_buffer, R);
@@ -317,13 +318,16 @@ void CudaRasterizer::Rasterizer::backward(
   // If we were given precomputed colors and not SHs, use them.
   const float *color_ptr =
       (colors_precomp != nullptr) ? colors_precomp : geomState.rgb;
+	float* collected_semantic_feature; 
+	cudaMalloc((void**)&collected_semantic_feature, NUM_SEMANTIC_CHANNELS * BLOCK_SIZE * sizeof(float)); 
   CHECK_CUDA(BACKWARD::render(
                  tile_grid, block, imgState.ranges, binningState.point_list,
                  width, height, background, geomState.means2D,
-                 geomState.conic_opacity, color_ptr, imgState.accum_alpha,
-                 imgState.n_contrib, dL_dpix, (float3 *)dL_dmean2D,
-                 (float4 *)dL_dconic, dL_dopacity, dL_dcolor),
+                 geomState.conic_opacity, color_ptr, semantic_feature, imgState.accum_alpha,
+                 imgState.n_contrib, dL_dpix, dL_dfeaturepix, (float3 *)dL_dmean2D,
+                 (float4 *)dL_dconic, dL_dopacity, dL_dcolor, dL_dsemantic_feature, collected_semantic_feature),
              debug)
+             cudaFree(collected_semantic_feature);
 
   // Take care of the rest of preprocessing. Was the precomputed covariance
   // given to us or a scales/rot pair? If precomputed, pass that. If not,

@@ -27,6 +27,8 @@ try:
     TENSORBOARD_FOUND = True
 except ImportError:
     TENSORBOARD_FOUND = False
+# From DGD
+from foundation_models import DINOv2_feature_extractor
 
 def training(dataset, opt, pipe, testing_iterations, saving_iterations, checkpoint_iterations, checkpoint, debug_from):
     first_iter = 0
@@ -48,6 +50,11 @@ def training(dataset, opt, pipe, testing_iterations, saving_iterations, checkpoi
     ema_loss_for_log = 0.0
     progress_bar = tqdm(range(first_iter, opt.iterations), desc="Training progress")
     first_iter += 1
+
+    # From DGD
+    # dinov2_vits14 = torch.hub.load('facebookresearch/dinov2', 'dinov2_vits14')
+    # dinov2_vits14.to('cuda')
+
     for iteration in range(first_iter, opt.iterations + 1):        
         if network_gui.conn == None:
             network_gui.try_connect()
@@ -77,16 +84,33 @@ def training(dataset, opt, pipe, testing_iterations, saving_iterations, checkpoi
             viewpoint_stack = scene.getTrainCameras().copy()
         viewpoint_cam = viewpoint_stack.pop(randint(0, len(viewpoint_stack)-1))
 
+        # total_frame = len(viewpoint_stack)
+        # time_interval = 1 / total_frame
+        # fid = viewpoint_cam.fid
+
         # Render
         if (iteration - 1) == debug_from:
             pipe.debug = True
         render_pkg = render(viewpoint_cam, gaussians, pipe, background)
         image, viewspace_point_tensor, visibility_filter, radii = render_pkg["render"], render_pkg["viewspace_points"], render_pkg["visibility_filter"], render_pkg["radii"]
 
+        # From DGD
+        # feature_map = render_pkg["feature_map"]
+        # image_original_name = viewpoint_cam.image_name
+        # image_name = args.source_path + "/rgb/1x/" + str(image_original_name) + ".png"
+        # feature_extractor = DINOv2_feature_extractor(image_name = image_name, model_dinov2_net = dinov2_vits14, image = None)
+        # feature_map_gt = feature_extractor.extract_feature().permute(2, 0, 1)
+        # target_size = (feature_map_gt.shape[1], feature_map_gt.shape[2])
+        # feature_map_downsampled = F.interpolate(feature_map.unsqueeze(0), size = target_size, mode='bilinear', align_corners=True).squeeze(0)
+        # loss_feature = l1_loss(feature_map_downsampled, feature_map_gt)
+        loss_feature = 0
+
         # Loss
         gt_image = viewpoint_cam.original_image.cuda()
         Ll1 = l1_loss(image, gt_image)
         loss = (1.0 - opt.lambda_dssim) * Ll1 + opt.lambda_dssim * (1.0 - ssim(image, gt_image))
+        # From DGD
+        loss += opt.loss_reduce * loss_feature
         loss.backward()
 
         iter_end.record()

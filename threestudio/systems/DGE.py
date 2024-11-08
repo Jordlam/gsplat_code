@@ -195,6 +195,9 @@ class DGE(BaseLift3DSystem):
             depth = render_pkg["depth_3dgs"]
             depth = depth.permute(1, 2, 0)
 
+            ### Since our pretrained DGD have feature values
+            ### Newly rendered semantic map should reflect the changes
+
             semantic_map = render(
                 cam,
                 self.gaussian,
@@ -252,6 +255,11 @@ class DGE(BaseLift3DSystem):
                         "height": self.trainer.datamodule.train_dataset.height,
                         "width": self.trainer.datamodule.train_dataset.width,
                     }
+
+                    # Debugging
+                    # for name, param in self.named_parameters():
+                    #     print(name, param.device)
+
                     out = self(cur_batch)["comp_rgb"]
                     out_to_save = (
                             out[0].cpu().detach().numpy().clip(0.0, 1.0) * 255.0
