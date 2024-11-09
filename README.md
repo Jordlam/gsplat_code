@@ -1,3 +1,37 @@
+# Jordlam's Changes to DGE
+
+## Installation
+Environment and dependencies should follow DGE installation, but matches scalar versions.
+
+```
+# Install conda env
+conda create -n DGE python=3.11
+conda activate DGE
+
+# Install torch
+# CUDA 12.2
+pip install torch torchvision --extra-index-url https://download.pytorch.org/whl/cu122
+pip install -r requirements.txt
+```
+
+## How I run the code
+To edit the pretrained Gaussians, 
+
+```python launch.py --config configs/dge.yaml --train data.source=gsplat_data/split-cookie system.gs_source=gsplat_data/cookie_DINO_10000/point_cloud/iteration_10000/point_cloud.ply system.prompt_processor.prompt="change the cookie to chocolate"```
+
+Data for DGD inputs and pretrained Gaussians can be found at https://drive.google.com/drive/folders/1swQeiLSrIcP3jqn-ycHVylfPYsSaqpw-?usp=sharing
+
+## Making changes to the code
+Due to how DGE runs, if you make any changes to ```submodules```, you must rebuild the corresponding submodule in order to see your changes reflected. For example, if I made changes to ```submodules/diff-gaussian-rasterization```
+
+```
+pip uninstall diff-gaussian-rasterization
+cd gaussiansplatting/submodules/diff-gaussian-rasterization
+python setup.py install
+```
+
+You should know see ```diff-gaussian-rasterization``` as a pip module if you run ```conda list```
+
 # DGE: Direct Gaussian 3D Editing by Consistent Multi-view Editing
 
 [Minghao Chen](https://silent-chen.github.io), [Iro Laina](), [Andrea Vedaldi](https://www.robots.ox.ac.uk/~vedaldi/)
