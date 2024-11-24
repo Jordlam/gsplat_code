@@ -14,7 +14,7 @@ import sys
 from PIL import Image
 from typing import NamedTuple
 from gaussiansplatting.scene.colmap_loader import read_extrinsics_text, read_intrinsics_text, qvec2rotmat, \
-    read_extrinsics_binary, read_intrinsics_binary, read_points3D_binary, read_points3D_text
+    read_extrinsics_binary, read_intrinsics_binary, read_points3D_binary, read_points3D_text, rotmat2qvec
 from gaussiansplatting.utils.graphics_utils import getWorld2View2, focal2fov, fov2focal
 import numpy as np
 import json
@@ -23,6 +23,7 @@ from plyfile import PlyData, PlyElement
 from gaussiansplatting.utils.camera_utils import camera_nerfies_from_JSON
 from gaussiansplatting.utils.sh_utils import SH2RGB
 from gaussiansplatting.scene.gaussian_model import BasicPointCloud
+import torch
 
 class CameraInfo(NamedTuple):
     uid: int
@@ -110,8 +111,7 @@ def readCamerasFromTransforms(path, transformsfile, white_background, extension=
             T = -matrix[:3, 3]
 
             # Edit this DGD code for DGE
-            # qvec = R | T
-            qvec = np.hstack((R, T.reshape(3, 1)))
+            qvec = rotmat2qvec(R)
             fid = frame['time']
 
             image_path = os.path.join(path, cam_name)
@@ -224,8 +224,7 @@ def readNerfiesCameras(path):
         R = orientation
 
         # Edit this DGD code for DGE
-        # qvec = R | T
-        qvec = np.hstack((R, T.reshape(3, 1)))
+        qvec = rotmat2qvec(R)
 
         FovY = focal2fov(focal, image.size[1])
         FovX = focal2fov(focal, image.size[0])
@@ -272,6 +271,42 @@ def readNerfiesInfo(path, eval):
                            test_cameras=test_cam_infos,
                            nerf_normalization=nerf_normalization,
                            ply_path=ply_path)
+    # Debug here
+    # point_cloud: BasicPointCloud
+    # train_cameras: list
+    # test_cameras: list
+    # nerf_normalization: dict
+    # ply_path: str
+
+    # class BasicPointCloud(NamedTuple):
+    #     points : np.array
+    #     colors : np.array
+    #     normals : np.array
+    pc = scene_info.point_cloud
+    points = pc.points
+    colors = pc.colors
+    normals = pc.normals
+    # if torch.is_tensor(points) and points.isnan().any().item():
+    #     print("points", points)
+    # if torch.is_tensor(colors) and colors.isnan().any().item():
+    #     print("colors", colors)
+    # if torch.is_tensor(normals) and normals.isnan().any().item():
+    #     print("normals", normals)
+
+    # for k, v in scene_info.nerf_normalization.items():
+    #     if torch.is_tensor(v) and v.isnan().any().item():
+    #         print("nerf_norm", v)
+    
+    # for train_cam in scene_info.train_cameras:
+    #     for v in train_cam:
+    #         if torch.is_tensor(v) and v.isnan().any().item():
+    #             print("train_cam", v)
+
+    # for test_cam in scene_info.test_cameras:
+    #     for v in test_cam:
+    #         if torch.is_tensor(v) and v.isnan().any().item():
+    #             print("test_cam", v)
+
     return scene_info
 
 sceneLoadTypeCallbacks = {

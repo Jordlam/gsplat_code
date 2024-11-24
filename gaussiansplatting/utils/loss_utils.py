@@ -44,8 +44,14 @@ def _ssim(img1, img2, window, window_size, channel, size_average=True):
     mu1 = F.conv2d(img1, window, padding=window_size // 2, groups=channel)
     mu2 = F.conv2d(img2, window, padding=window_size // 2, groups=channel)
 
+    # if torch.is_tensor(mu1) and mu1.isnan().any().item():
+    #     print("mu1", mu1)
+    # if torch.is_tensor(mu2) and mu2.isnan().any().item():
+    #     print("mu2", mu2)
     mu1_sq = mu1.pow(2)
     mu2_sq = mu2.pow(2)
+    # mu1_sq = mu1.abs().pow(2)
+    # mu2_sq = mu2.abs().pow(2)
     mu1_mu2 = mu1 * mu2
 
     sigma1_sq = F.conv2d(img1 * img1, window, padding=window_size // 2, groups=channel) - mu1_sq
