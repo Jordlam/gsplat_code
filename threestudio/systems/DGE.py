@@ -178,7 +178,23 @@ class DGE(BaseLift3DSystem):
         self.gaussian.localize = local
         for id, cam in enumerate(batch["camera"]):
 
+            # Quick bug fix?
+            # if id == 0:
+            #     print(cam.full_proj_transform.dtype)
+            cam.full_proj_transform = cam.full_proj_transform.to(torch.float32)
+            # if id == 0:
+            #     print(cam.full_proj_transform.dtype)
+            if cam.image_height == -1 or cam.image_width == -1:
+                print("Image is not right")
+
+            # print(batch)
+            # print(cam)
+            # exit(-1)
+
             render_pkg = render(cam, self.gaussian, self.pipe, renderbackground)
+            # for k, v in render_pkg.items():
+            #     if torch.is_tensor(v) and v.isnan().any().item():
+            #         print("render1", k, v)
             image, viewspace_point_tensor, _, radii = (
                 render_pkg["render"],
                 render_pkg["viewspace_points"],
@@ -237,6 +253,10 @@ class DGE(BaseLift3DSystem):
         render_pkg["comp_rgb"] = images
         render_pkg["depth"] = depths
         render_pkg["opacity"] = depths / (depths.max() + 1e-5)
+
+        # for k, v in render_pkg.items():
+        #     if torch.is_tensor(v) and v.isnan().any().item():
+        #         print(k, v)
         return {
             **render_pkg,
         }
@@ -255,12 +275,9 @@ class DGE(BaseLift3DSystem):
                         "height": self.trainer.datamodule.train_dataset.height,
                         "width": self.trainer.datamodule.train_dataset.width,
                     }
-
-                    # Debugging
-                    # for name, param in self.named_parameters():
-                    #     print(name, param.device)
-
+                    # print('before cur batch *****')
                     out = self(cur_batch)["comp_rgb"]
+                    # exit(-1)
                     out_to_save = (
                             out[0].cpu().detach().numpy().clip(0.0, 1.0) * 255.0
                     ).astype(np.uint8)
@@ -570,15 +587,24 @@ class DGE(BaseLift3DSystem):
                     "width": self.trainer.datamodule.train_dataset.width,
                 }
                 out_pkg = self(cur_batch)
+                # for k, v in out_pkg.items():
+                #     if torch.is_tensor(v) and v.isnan().any().item():
+                #         print(k, v)
                 out = out_pkg["comp_rgb"]
                 if self.cfg.use_masked_image:
                     out = out * out_pkg["masks"].unsqueeze(-1)
                 images.append(out)
                 assert os.path.exists(original_image_path)
                 cached_image = cv2.cvtColor(cv2.imread(original_image_path), cv2.COLOR_BGR2RGB)
-                self.origin_frames[id] = torch.tensor(
+                frame_t = torch.tensor(
                     cached_image / 255, device="cuda", dtype=torch.float32
                 )[None]
+                # self.origin_frames[id] = torch.tensor(
+                #     cached_image / 255, device="cuda", dtype=torch.float32
+                # )[None]
+                self.origin_frames[id] = frame_t
+                if torch.is_tensor(frame_t) and frame_t.isnan().any().item():
+                    print("Printing the frame_t here", frame_t)
                 original_frames.append(self.origin_frames[id])
             images = torch.cat(images, dim=0)
             original_frames = torch.cat(original_frames, dim=0)
@@ -589,6 +615,9 @@ class DGE(BaseLift3DSystem):
                 self.prompt_processor(),
                 cams = cams_sorted
             )
+            images_t = edited_images["edit_images"]
+            # if torch.is_tensor(images_t) and images_t.isnan().any().item():
+            #     print("Images tensor", images_t)
 
             for view_index_tmp in range(len(self.view_list)):
                 self.edit_frames[view_sorted[view_index_tmp]] = edited_images['edit_images'][view_index_tmp].unsqueeze(0).detach().clone() # 1 H W C
@@ -601,8 +630,13 @@ class DGE(BaseLift3DSystem):
         distances = [np.arccos(np.clip(np.dot(most_left_vecotr, cam.R[:, 2]), 0, 1)) for cam in cams]
         sorted_cams = [cam for _, cam in sorted(zip(distances, cams), key=lambda pair: pair[0])]
         reference_axis = np.cross(most_left_vecotr, sorted_cams[1].R[:, 2])
-        distances_with_sign = [np.arccos(np.dot(most_left_vecotr, cam.R[:, 2])) if np.dot(reference_axis,  np.cross(most_left_vecotr, cam.R[:, 2])) >= 0 else 2 * np.pi - np.arccos(np.dot(most_left_vecotr, cam.R[:, 2])) for cam in cams]
-        
+        # print("Dotting")
+        # print([np.dot(reference_axis, np.cross(most_left_vecotr, cam.R[:, 2])) for cam in cams])
+        # print("input to arcos", [np.dot(most_left_vecotr, cam.R[:, 2]) for cam in cams])
+        # input = [0 * l for l in distances_with_sign]
+        distances_with_sign = [np.arccos(np.dot(most_left_vecotr, cam.R[:, 2])) if np.dot(reference_axis,  np.cross(most_left_vecotr, cam.R[:, 2])) >= 0 else 2 * np.pi - np.arccos(0 * np.dot(most_left_vecotr, cam.R[:, 2])) for cam in cams]
+        # distances_with_sign = [0 * l for l in distances_with_sign]
+
         sorted_cam_idx = [idx for _, idx in sorted(zip(distances_with_sign, range(len(cams))), key=lambda pair: pair[0])]
 
         return sorted_cam_idx
@@ -636,7 +670,14 @@ class DGE(BaseLift3DSystem):
                 if cur_index not in self.edit_frames:
                     batch_index[img_index] = self.view_list[img_index]
 
+        # print("Start foward trainig)step")
         out = self(batch, local=self.cfg.local_edit)
+        # exit(-1)
+        # print("Finished")
+
+        # for k, v in out.items():
+        #     if torch.is_tensor(v) and v.isnan().any().item():
+        #         print(k, v)
 
         images = out["comp_rgb"]
         mask = out["masks"].unsqueeze(-1)
@@ -655,37 +696,42 @@ class DGE(BaseLift3DSystem):
                         < self.cfg.edit_until_step
                         and self.global_step % self.cfg.per_editing_step == 0
                 )) and 'dge' not in str(self.cfg.guidance_type) and not self.cfg.loss.use_sds:
-                    print(self.cfg.guidance_type)
+                    # print(self.cfg.guidance_type)
+                    # print("RESULT GUIDANCE")
                     result = self.guidance(
                         images[img_index][None],
                         self.origin_frames[cur_index],
                         prompt_utils,
                     )
+                    # print("self 1 finished")
                  
                     self.edit_frames[cur_index] = result["edit_images"].detach().clone()
 
                 gt_images.append(self.edit_frames[cur_index])
             gt_images = torch.concatenate(gt_images, dim=0)
             if self.cfg.use_masked_image:
-                print("use masked image")
+                # print("use masked image")
+                # print("IF GUIDANCE")
                 guidance_out = {
                 "loss_l1": torch.nn.functional.l1_loss(images * mask, gt_images * mask),
-                "loss_p": self.perceptual_loss(
-                    (images * mask).permute(0, 3, 1, 2).contiguous(),
-                    (gt_images * mask ).permute(0, 3, 1, 2).contiguous(),
-                ).sum(),
-                }
+                # "loss_p": self.perceptual_loss(
+                #     (images * mask).permute(0, 3, 1, 2).contiguous(),
+                #     (gt_images * mask ).permute(0, 3, 1, 2).contiguous(),
+                # ).sum(),
+                } 
             else:
+                # print("ELSE GUIDANCE")
                 guidance_out = {
                     "loss_l1": torch.nn.functional.l1_loss(images, gt_images),
-                    "loss_p": self.perceptual_loss(
-                        images.permute(0, 3, 1, 2).contiguous(),
-                        gt_images.permute(0, 3, 1, 2).contiguous(),
-                    ).sum(),
+                    # "loss_p": self.perceptual_loss(
+                    #     images.permute(0, 3, 1, 2).contiguous(),
+                    #     gt_images.permute(0, 3, 1, 2).contiguous(),
+                    # ).sum(),
                 }
             for name, value in guidance_out.items():
                 self.log(f"train/{name}", value)
                 if name.startswith("loss_"):
+                    # print("REPLACE LOSS")
                     loss += value * self.C(
                         self.cfg.loss[name.replace("loss_", "lambda_")]
                     )
@@ -693,15 +739,29 @@ class DGE(BaseLift3DSystem):
         if self.cfg.loss.use_sds:
             prompt_utils = self.prompt_processor()
             self.guidance.cfg.use_sds = True
+            # print("self 2")
             guidance_out = self.guidance(
                 out["comp_rgb"],
                 torch.concatenate(
                     [self.origin_frames[idx] for idx in batch_index], dim=0
                 ),
-                prompt_utils)  
+                prompt_utils) 
+            # print("SDS LOSS")
             loss += guidance_out["loss_sds"] * self.cfg.loss.lambda_sds 
 
         for name, value in self.cfg.loss.items():
             self.log(f"train_params/{name}", self.C(value))
-    
+        # Dataset correction
+        # epsilon = 1e-6
+        # print(type(loss), loss)
+        # print("we are here")
         return {"loss": loss}
+    
+    # Debugging
+    def backward(self, loss):
+        # print("We are entering the backward step")
+        if loss.isnan() or loss.isinf():
+            print("Bad batch found.")
+            return
+        loss.backward()
+        # print("Finished backward step")

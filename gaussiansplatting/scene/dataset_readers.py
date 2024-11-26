@@ -14,7 +14,7 @@ import sys
 from PIL import Image
 from typing import NamedTuple
 from gaussiansplatting.scene.colmap_loader import read_extrinsics_text, read_intrinsics_text, qvec2rotmat, \
-    read_extrinsics_binary, read_intrinsics_binary, read_points3D_binary, read_points3D_text
+    read_extrinsics_binary, read_intrinsics_binary, read_points3D_binary, read_points3D_text, rotmat2qvec
 from gaussiansplatting.utils.graphics_utils import getWorld2View2, focal2fov, fov2focal
 import numpy as np
 import json
@@ -23,6 +23,7 @@ from plyfile import PlyData, PlyElement
 from gaussiansplatting.utils.camera_utils import camera_nerfies_from_JSON
 from gaussiansplatting.utils.sh_utils import SH2RGB
 from gaussiansplatting.scene.gaussian_model import BasicPointCloud
+import torch
 
 class CameraInfo(NamedTuple):
     uid: int
@@ -110,14 +111,20 @@ def readCamerasFromTransforms(path, transformsfile, white_background, extension=
             T = -matrix[:3, 3]
 
             # Edit this DGD code for DGE
-            # qvec = R | T
-            qvec = np.hstack((R, T.reshape(3, 1)))
+            qvec = rotmat2qvec(R)
             fid = frame['time']
 
-            image_path = os.path.join(path, cam_name)
+            # image_path = os.path.join(path, cam_name)
             image_name = Path(cam_name).stem
-            image = Image.open(image_path)
 
+            # if using DNeRF dataset
+            if "dnerf" in path:
+                image_path = cam_name
+            # if using HyperNeRF dataset
+            elif "hypernerf" in path:
+                image_path = os.path.join(path, cam_name)
+
+            image = Image.open(image_path)
             im_data = np.array(image.convert("RGBA"))
 
             bg = np.array([1,1,1]) if white_background else np.array([0, 0, 0])
@@ -224,8 +231,7 @@ def readNerfiesCameras(path):
         R = orientation
 
         # Edit this DGD code for DGE
-        # qvec = R | T
-        qvec = np.hstack((R, T.reshape(3, 1)))
+        qvec = rotmat2qvec(R)
 
         FovY = focal2fov(focal, image.size[1])
         FovX = focal2fov(focal, image.size[0])
@@ -272,11 +278,83 @@ def readNerfiesInfo(path, eval):
                            test_cameras=test_cam_infos,
                            nerf_normalization=nerf_normalization,
                            ply_path=ply_path)
+    # Debug here
+    # point_cloud: BasicPointCloud
+    # train_cameras: list
+    # test_cameras: list
+    # nerf_normalization: dict
+    # ply_path: str
+
+    # class BasicPointCloud(NamedTuple):
+    #     points : np.array
+    #     colors : np.array
+    #     normals : np.array
+    pc = scene_info.point_cloud
+    points = pc.points
+    colors = pc.colors
+    normals = pc.normals
+    # if torch.is_tensor(points) and points.isnan().any().item():
+    #     print("points", points)
+    # if torch.is_tensor(colors) and colors.isnan().any().item():
+    #     print("colors", colors)
+    # if torch.is_tensor(normals) and normals.isnan().any().item():
+    #     print("normals", normals)
+
+    # for k, v in scene_info.nerf_normalization.items():
+    #     if torch.is_tensor(v) and v.isnan().any().item():
+    #         print("nerf_norm", v)
+    
+    # for train_cam in scene_info.train_cameras:
+    #     for v in train_cam:
+    #         if torch.is_tensor(v) and v.isnan().any().item():
+    #             print("train_cam", v)
+
+    # for test_cam in scene_info.test_cameras:
+    #     for v in test_cam:
+    #         if torch.is_tensor(v) and v.isnan().any().item():
+    #             print("test_cam", v)
+
+    return scene_info
+
+def readNerfSyntheticInfo(path, white_background, eval, extension=".png"):
+    print("Reading Training Transforms")
+    train_cam_infos = readCamerasFromTransforms(path, "transforms_train.json", white_background, extension)
+    print("Reading Test Transforms")
+    test_cam_infos = readCamerasFromTransforms(path, "transforms_test.json", white_background, extension)
+
+    if not eval:
+        train_cam_infos.extend(test_cam_infos)
+        test_cam_infos = []
+
+    nerf_normalization = getNerfppNorm(train_cam_infos)
+
+    ply_path = os.path.join(path, "points3d.ply")
+    if not os.path.exists(ply_path):
+        # Since this data set has no colmap data, we start with random points
+        num_pts = 100_000
+        print(f"Generating random point cloud ({num_pts})...")
+
+        # We create random points inside the bounds of the synthetic Blender scenes
+        xyz = np.random.random((num_pts, 3)) * 2.6 - 1.3
+        shs = np.random.random((num_pts, 3)) / 255.0
+        pcd = BasicPointCloud(points=xyz, colors=SH2RGB(shs), normals=np.zeros((num_pts, 3)))
+
+        storePly(ply_path, xyz, SH2RGB(shs) * 255)
+    try:
+        pcd = fetchPly(ply_path)
+    except:
+        pcd = None
+
+    scene_info = SceneInfo(point_cloud=pcd,
+                           train_cameras=train_cam_infos,
+                           test_cameras=test_cam_infos,
+                           nerf_normalization=nerf_normalization,
+                           ply_path=ply_path)
     return scene_info
 
 sceneLoadTypeCallbacks = {
     # "Colmap": readColmapSceneInfo,
     # "Colmap_hw": readColmapSceneInfo_hw,
-    # "Blender" : readNerfSyntheticInfo,
+    "Blender" : readNerfSyntheticInfo,
     "nerfies": readNerfiesInfo,
 }

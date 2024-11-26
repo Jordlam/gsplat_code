@@ -204,6 +204,7 @@ class MarchingTetrahedraHelper(IsosurfaceHelper):
         idx_map = idx_map.reshape(-1, 6)
 
         v_id = torch.pow(2, torch.arange(4, dtype=torch.long, device=pos_nx3.device))
+        # v_id = torch.pow(2, torch.arange(4, dtype=torch.long, device=pos_nx3.device).abs())
         tetindex = (occ_fx4[valid_tets] * v_id.unsqueeze(0)).sum(-1)
         num_triangles = self.num_triangles_table[tetindex]
 

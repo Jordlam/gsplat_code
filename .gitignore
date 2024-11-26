@@ -8,4 +8,6 @@
 *.ckpt
 *.csv
 *.txt
+*.DS_Store
 *outputs/
+*gsplat_data/

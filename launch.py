@@ -180,6 +180,7 @@ def main(args, extras) -> None:
         inference_mode=False,
         accelerator="gpu",
         devices=devices,
+        # detect_anomaly=True,
         **cfg.trainer,
     )
 

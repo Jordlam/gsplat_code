@@ -44,7 +44,14 @@ class PerceptualLoss(nn.Module):
         return model
 
     def forward(self, input, target):
+        if input.isnan().any() or input.isinf().any():
+            print("Bad input")
         in0_input, in1_input = (self.scaling_layer(input), self.scaling_layer(target))
+        if in0_input.isnan().any() or in0_input.isinf().any():
+            print("Bad in0_input")
+        if in1_input.isnan().any() or in1_input.isinf().any():
+            print("Bad in1_input")
+        # Error here right now
         outs0, outs1 = self.net(in0_input), self.net(in1_input)
         feats0, feats1, diffs = {}, {}, {}
         lins = [self.lin0, self.lin1, self.lin2, self.lin3, self.lin4]
@@ -52,7 +59,20 @@ class PerceptualLoss(nn.Module):
             feats0[kk], feats1[kk] = normalize_tensor(outs0[kk]), normalize_tensor(
                 outs1[kk]
             )
-            diffs[kk] = (feats0[kk] - feats1[kk]) ** 2
+            f0kk, f1kk = feats0[kk], feats1[kk]
+            # assert f0kk.requires_grad, "f0kk is detached"
+            # assert f1kk.requires_grad, "f1kk is detached"
+            # torch.autograd.gradcheck(lambda x: (x - feats1[kk]) ** 2, feats0[kk])
+            # if torch.is_tensor(f0kk) and f0kk.isnan().any().item():
+            #     print("f0kk", f0kk)
+            # if torch.is_tensor(f1kk) and f1kk.isnan().any().item():
+            #     print("f1kk", f1kk)
+            # print((f0kk < 0).any(), "Negative f0kk")
+            # print((f1kk < 0).any(), "Negative f1kk")
+            # print(((f0kk - f1kk) < 0).any(), "Negative f1kk")
+            eps = 1e-5
+            diff = f0kk - f1kk
+            diffs[kk] = diff.clamp(min=eps).abs().square()
 
         res = [
             spatial_average(lins[kk].model(diffs[kk]), keepdim=True)
@@ -121,6 +141,9 @@ class vgg16(torch.nn.Module):
                 param.requires_grad = False
 
     def forward(self, X):
+        do_clamp = lambda X: X.clamp(min=1e-5)
+        if X.isnan().any() or X.isinf().any():
+            print("Bad X")
         h = self.slice1(X)
         h_relu1_2 = h
         h = self.slice2(h)
@@ -129,19 +152,53 @@ class vgg16(torch.nn.Module):
         h_relu3_3 = h
         h = self.slice4(h)
         h_relu4_3 = h
+
+        # Original code
+        # h = self.slice1(X)
+        # h_relu1_2 = h
+        # h = self.slice2(h)
+        # h_relu2_2 = h
+        # h = self.slice3(h)
+        # h_relu3_3 = h
+        # h = self.slice4(h)
+        # h_relu4_3 = h
+
+        if h.isnan().any() or h.isinf().any():
+            print("Bad h")
         h = self.slice5(h)
+        # h = self.slice5(do_clamp(h))
+        if h.isnan().any() or h.isinf().any():
+            print("Bad h_2")
+        # h = do_clamp(h)
+        if h.isnan().any() or h.isinf().any():
+            print("Bad h_clamp")
         h_relu5_3 = h
         vgg_outputs = namedtuple(
             "VggOutputs", ["relu1_2", "relu2_2", "relu3_3", "relu4_3", "relu5_3"]
         )
+
+        # Clamp all before return
+        h_relu1_2 = do_clamp(h_relu1_2)
+        h_relu2_2 = do_clamp(h_relu2_2)
+        h_relu3_3 = do_clamp(h_relu3_3)
+        h_relu4_3 = do_clamp(h_relu4_3)
+        h_relu5_3 = do_clamp(h_relu5_3)
+
         out = vgg_outputs(h_relu1_2, h_relu2_2, h_relu3_3, h_relu4_3, h_relu5_3)
         return out
 
+def normalize_tensor(x, eps=1e-5):
+    # Original Code
+    # norm_factor = torcvidiaih.sqrt(torch.sum(x**2, dim=1, keepdim=True))
+    # return x / (norm_factor + eps)
 
-def normalize_tensor(x, eps=1e-10):
-    norm_factor = torch.sqrt(torch.sum(x**2, dim=1, keepdim=True))
-    return x / (norm_factor + eps)
-
+    # return nn.functional.normalize(x, eps=eps)
+    if x.isnan().any() or x.isinf().any():
+        print("Bad x")
+    x_2 = x.clamp(min=eps).abs().square()
+    norm_factor = torch.sqrt(torch.sum(x_2, dim=1, keepdim=True))
+    norm_factor = norm_factor.clamp(min=eps)
+    return (x.clamp(min=eps) / norm_factor).clamp(min=eps)
 
 def spatial_average(x, keepdim=True):
     return x.mean([2, 3], keepdim=keepdim)

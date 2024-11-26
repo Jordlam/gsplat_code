@@ -12,6 +12,8 @@
 import torch
 from torch import nn
 import numpy as np
+from PIL import Image
+from gaussiansplatting.utils.general_utils import PILtoTorch
 from gaussiansplatting.utils.graphics_utils import getWorld2View2, getProjectionMatrix, focal2fov, fov2focal,getWorld2View2_tensor
 
 class Camera(nn.Module):
@@ -82,6 +84,16 @@ class Simple_Camera(nn.Module):
         self.image_width = w
         self.image_height = h
 
+        # Why is this code missing?
+        # resolution = (int(w / scale), int(h / scale))
+        # image = Image.open(image_path)
+        # resized_image_rgb = PILtoTorch(image, resolution)
+        # image = resized_image_rgb[:3, ...]
+        # self.original_image = image.clamp(0.0, 1.0).to(self.data_device)
+        # self.fid = torch.Tensor(np.array([fid])).to(self.data_device)
+        # self.image_width = self.original_image.shape[2]
+        # self.image_height = self.original_image.shape[1]
+        # self.depth = torch.Tensor(depth).to(self.data_device) if depth is not None else None
 
         self.zfar = 100.0
         self.znear = 0.01
@@ -93,6 +105,10 @@ class Simple_Camera(nn.Module):
         self.projection_matrix = getProjectionMatrix(znear=self.znear, zfar=self.zfar, fovX=self.FoVx, fovY=self.FoVy).transpose(0,1).cuda()
         self.full_proj_transform = (self.world_view_transform.unsqueeze(0).bmm(self.projection_matrix.unsqueeze(0))).squeeze(0)
         self.camera_center = self.world_view_transform.inverse()[3, :3]
+    
+    def __str__(self):
+        print(self.R, self.T, self.qvec)
+        return ""
 
     def HW_scale(self, h, w):
         return Simple_Camera(self.colmap_id, self.R, self.T, self.FoVx, self.FoVy, h, w, self.image_name, self.uid ,qvec=self.qvec)
