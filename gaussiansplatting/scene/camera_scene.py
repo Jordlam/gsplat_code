@@ -34,8 +34,23 @@ class CamScene:
                     w /= scale
             else:
                 scene_info = sceneLoadTypeCallbacks["Colmap_hw"](source_path, h, w, None, False)
+
         elif os.path.exists(os.path.join(source_path, "dataset.json")):
-                scene_info = sceneLoadTypeCallbacks["nerfies"](source_path, False)
+            scene_info = sceneLoadTypeCallbacks["nerfies"](source_path, False)
+            if (h == -1 or w == -1):
+                print(h, w, "Image is weird")
+            h = scene_info.train_cameras[0].height
+            w = scene_info.train_cameras[0].width
+            if (h == -1 or w == -1):
+                print(h, w, "Image is weird again")
+
+        elif os.path.exists(os.path.join(source_path, "transforms_train.json")):
+            print("Found transforms_train.json file, assuming Blender data set for CamScene!")
+            scene_info = sceneLoadTypeCallbacks["Blender"](source_path, None, False)
+            h = scene_info.train_cameras[0].height
+            w = scene_info.train_cameras[0].width
+            if (h == -1 or w == -1):
+                print(h, w, "Image")
 
         else:
             assert False, "Could not recognize scene type!"

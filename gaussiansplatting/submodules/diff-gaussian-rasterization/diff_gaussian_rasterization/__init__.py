@@ -83,7 +83,7 @@ class _RasterizeGaussians(torch.autograd.Function):
             raster_settings.prefiltered,
             raster_settings.debug,
         )
-        args = [t.to(torch.float32).to("cuda") if torch.is_tensor(t) and t.dtype != torch.int else t for t in args]
+        # args = [t.to(torch.float32).to("cuda") if torch.is_tensor(t) and t.dtype != torch.int else t for t in args]
 
         # Invoke C++/CUDA rasterizer
         if raster_settings.debug:
@@ -107,6 +107,13 @@ class _RasterizeGaussians(torch.autograd.Function):
                 )
                 raise ex
         else:
+            # Debugging
+            # for i, a in enumerate(args):
+            #     if isinstance(a, torch.Tensor):
+            #         print("     ", i, a.dtype, a)
+            #     else:
+            #         print(i, type(a), a)
+
             (
                 num_rendered,
                 color,
@@ -176,7 +183,7 @@ class _RasterizeGaussians(torch.autograd.Function):
             imgBuffer,
             raster_settings.debug,
         )
-        args = [t.to(torch.float32).to("cuda") if torch.is_tensor(t) and t.dtype != torch.int else t for t in args]
+        # args = [t.to(torch.float32).to("cuda") if torch.is_tensor(t) and t.dtype != torch.int else t for t in args]
         # debug
         # for i, a in enumerate(args):
         #     if torch.is_tensor(a):
@@ -366,6 +373,6 @@ class GaussianRasterizer(nn.Module):
             cnt,
             raster_settings.debug,
         )
-        args = [t.to(torch.float32).to("cuda") if torch.is_tensor(t) and t.dtype != torch.int else t for t in args]
+        # args = [t.to(torch.float32).to("cuda") if torch.is_tensor(t) and t.dtype != torch.int else t for t in args]
 
         _C.apply_weights(*args)

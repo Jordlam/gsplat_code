@@ -64,6 +64,7 @@ def cameraList_from_camInfos(cam_infos, resolution_scale, args):
 def cameraList_load(cam_infos, h, w):
     camera_list = []
 
+    # Simple_Camera could be initialized with h and w == -1?
     for id, c in enumerate(cam_infos):
         camera_list.append(
             Simple_Camera(colmap_id=c.uid, R=c.R, T=c.T,

@@ -178,6 +178,15 @@ class DGE(BaseLift3DSystem):
         self.gaussian.localize = local
         for id, cam in enumerate(batch["camera"]):
 
+            # Quick bug fix?
+            # if id == 0:
+            #     print(cam.full_proj_transform.dtype)
+            cam.full_proj_transform = cam.full_proj_transform.to(torch.float32)
+            # if id == 0:
+            #     print(cam.full_proj_transform.dtype)
+            if cam.image_height == -1 or cam.image_width == -1:
+                print("Image is not right")
+
             # print(batch)
             # print(cam)
             # exit(-1)
@@ -685,7 +694,7 @@ class DGE(BaseLift3DSystem):
                         and self.global_step % self.cfg.per_editing_step == 0
                 )) and 'dge' not in str(self.cfg.guidance_type) and not self.cfg.loss.use_sds:
                     # print(self.cfg.guidance_type)
-                    print("RESULT GUIDANCE")
+                    # print("RESULT GUIDANCE")
                     result = self.guidance(
                         images[img_index][None],
                         self.origin_frames[cur_index],
@@ -699,16 +708,16 @@ class DGE(BaseLift3DSystem):
             gt_images = torch.concatenate(gt_images, dim=0)
             if self.cfg.use_masked_image:
                 # print("use masked image")
-                print("IF GUIDANCE")
+                # print("IF GUIDANCE")
                 guidance_out = {
                 "loss_l1": torch.nn.functional.l1_loss(images * mask, gt_images * mask),
-                "loss_p": self.perceptual_loss(
-                    (images * mask).permute(0, 3, 1, 2).contiguous(),
-                    (gt_images * mask ).permute(0, 3, 1, 2).contiguous(),
-                ).sum(),
+                # "loss_p": self.perceptual_loss(
+                #     (images * mask).permute(0, 3, 1, 2).contiguous(),
+                #     (gt_images * mask ).permute(0, 3, 1, 2).contiguous(),
+                # ).sum(),
                 } 
             else:
-                print("ELSE GUIDANCE")
+                # print("ELSE GUIDANCE")
                 guidance_out = {
                     "loss_l1": torch.nn.functional.l1_loss(images, gt_images),
                     # "loss_p": self.perceptual_loss(
@@ -719,7 +728,7 @@ class DGE(BaseLift3DSystem):
             for name, value in guidance_out.items():
                 self.log(f"train/{name}", value)
                 if name.startswith("loss_"):
-                    print("REPLACE LOSS")
+                    # print("REPLACE LOSS")
                     loss += value * self.C(
                         self.cfg.loss[name.replace("loss_", "lambda_")]
                     )
@@ -734,7 +743,7 @@ class DGE(BaseLift3DSystem):
                     [self.origin_frames[idx] for idx in batch_index], dim=0
                 ),
                 prompt_utils) 
-            print("SDS LOSS")
+            # print("SDS LOSS")
             loss += guidance_out["loss_sds"] * self.cfg.loss.lambda_sds 
 
         for name, value in self.cfg.loss.items():
