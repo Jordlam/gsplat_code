@@ -177,6 +177,8 @@ CudaRasterizer::BinningState::fromChunk(char *&chunk, size_t P) {
 
 // Forward rendering procedure for differentiable rasterization
 // of Gaussians.
+
+// Bug from call here?
 int CudaRasterizer::Rasterizer::forward(
     std::function<char *(size_t)> geometryBuffer,
     std::function<char *(size_t)> binningBuffer,
@@ -186,10 +188,12 @@ int CudaRasterizer::Rasterizer::forward(
     const float *scales, const float scale_modifier, const float *rotations,
     const float *cov3D_precomp, const float *viewmatrix,
     const float *projmatrix, const float *cam_pos, const float tan_fovx,
-    float tan_fovy, const bool prefiltered, float *out_color, float *out_depth, float* out_feature_map,
+    float tan_fovy, const bool prefiltered, float *out_color, float* out_feature_map, float *out_depth,
     int *radii, bool debug) {
   const float focal_y = height / (2.0f * tan_fovy);
   const float focal_x = width / (2.0f * tan_fovx);
+
+  // printf("We are in the forward step in rasterizer_impl.cu\n");
 
   size_t chunk_size = required<GeometryState>(P);
   char *chunkptr = geometryBuffer(chunk_size);
@@ -274,6 +278,8 @@ int CudaRasterizer::Rasterizer::forward(
   // Let each tile blend its range of Gaussians independently in parallel
   const float *feature_ptr =
       colors_precomp != nullptr ? colors_precomp : geomState.rgb;
+    
+  // Bug here???
   CHECK_CUDA(FORWARD::render(tile_grid, block, imgState.ranges,
                              binningState.point_list, width, height,
                              geomState.means2D, feature_ptr, semantic_feature,
@@ -301,6 +307,8 @@ void CudaRasterizer::Rasterizer::backward(
   GeometryState geomState = GeometryState::fromChunk(geom_buffer, P);
   BinningState binningState = BinningState::fromChunk(binning_buffer, R);
   ImageState imgState = ImageState::fromChunk(img_buffer, width * height);
+
+  // printf("We are in the backward step in rasterizer_impl.cu\n");
 
   if (radii == nullptr) {
     radii = geomState.internal_radii;
@@ -357,6 +365,8 @@ void CudaRasterizer::Rasterizer::apply_weights(
     int *radii, int *cnt, const int num_channels, bool debug) {
   const float focal_y = height / (2.0f * tan_fovy);
   const float focal_x = width / (2.0f * tan_fovx);
+
+  // printf("We are in the apply_weights step in rasterizer_impl.cu\n");
 
   size_t chunk_size = required<GeometryState>(P);
   char *chunkptr = geometryBuffer(chunk_size);

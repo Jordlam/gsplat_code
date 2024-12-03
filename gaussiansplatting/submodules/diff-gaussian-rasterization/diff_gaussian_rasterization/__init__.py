@@ -36,7 +36,7 @@ def rasterize_gaussians(
     raster_settings,
 ):
     # apply calls forward
-    print("About to .apply")
+    # print("About to .apply")
     apply_results = _RasterizeGaussians.apply(
         means3D,
         means2D,
@@ -49,7 +49,7 @@ def rasterize_gaussians(
         cov3Ds_precomp,
         raster_settings,
     )
-    print("We completed .apply")
+    # print("We completed .apply")
     return apply_results
 
 
@@ -299,7 +299,7 @@ class GaussianRasterizer(nn.Module):
         rotations=None,
         cov3D_precomp=None,
     ):
-        print("Fixing settings.")
+        # print("Fixing settings.")
         raster_settings = self.raster_settings
 
         if (shs is None and colors_precomp is None) or (
@@ -329,7 +329,7 @@ class GaussianRasterizer(nn.Module):
             cov3D_precomp = torch.Tensor([]).to(torch.float32).to("cuda")
         
         # Do extra torch conversions here?
-        print("About to rasterize.")
+        # print("About to rasterize.")
 
         # Invoke C++/CUDA rasterization routine
         return rasterize_gaussians(

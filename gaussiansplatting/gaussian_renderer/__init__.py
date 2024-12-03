@@ -127,8 +127,10 @@ def render(
     else:
         colors_precomp = override_color
     semantic_feature = pc.get_semantic_feature
-    print(semantic_feature.get_device())
-    print("The bug is about to start from here")
+    # print(semantic_feature.get_device())
+    # print("The bug is about to start from here")
+
+    # Maybe print here what the arguments all are
 
     # Rasterize visible Gaussians to image, obtain their radii (on screen).
     # import pdb; pdb.set_trace()
@@ -143,11 +145,11 @@ def render(
         rotations=rotations.float(),
         cov3D_precomp=cov3D_precomp,
     )
-    print(rendered_image.get_device())
-    print(screenspace_points.get_device())
-    print(radii.get_device())
-    print(depth.get_device())
-    print(feature_map.get_device())
+    # print(rendered_image.get_device())
+    # print(screenspace_points.get_device())
+    # print(radii.get_device())
+    # print(depth.get_device())
+    # print(feature_map.get_device())
 
     # Those Gaussians that were frustum culled or had a radius of 0 were not visible.
     # They will be excluded from value updates used in the splitting criteria.

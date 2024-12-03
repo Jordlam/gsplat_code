@@ -35,9 +35,6 @@ class CamScene:
             else:
                 scene_info = sceneLoadTypeCallbacks["Colmap_hw"](source_path, h, w, None, False)
         elif os.path.exists(os.path.join(source_path, "dataset.json")):
-                scene_info = sceneLoadTypeCallbacks["nerfies"](source_path, False)
-
-        elif os.path.exists(os.path.join(source_path, "dataset.json")):
             scene_info = sceneLoadTypeCallbacks["nerfies"](source_path, False)
             if (h == -1 or w == -1):
                 print(h, w, "Image is weird")
