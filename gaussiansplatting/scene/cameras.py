@@ -61,7 +61,7 @@ class Camera(nn.Module):
 class Simple_Camera(nn.Module):
     def __init__(self, colmap_id, R, T, FoVx, FoVy, h, w,
                  image_name, uid,
-                 trans=np.array([0.0, 0.0, 0.0]), scale=1.0, data_device = "cuda", qvec=None
+                 trans=np.array([0.0, 0.0, 0.0]), scale=1.0, data_device = "cuda", qvec=None, fid=None
                  ):
         super(Simple_Camera, self).__init__()
 
@@ -95,6 +95,8 @@ class Simple_Camera(nn.Module):
         # self.image_height = self.original_image.shape[1]
         # self.depth = torch.Tensor(depth).to(self.data_device) if depth is not None else None
 
+        self.fid = torch.Tensor(np.array([fid])).to(self.data_device)
+
         self.zfar = 100.0
         self.znear = 0.01
 
@@ -106,9 +108,9 @@ class Simple_Camera(nn.Module):
         self.full_proj_transform = (self.world_view_transform.unsqueeze(0).bmm(self.projection_matrix.unsqueeze(0))).squeeze(0)
         self.camera_center = self.world_view_transform.inverse()[3, :3]
     
-    def __str__(self):
-        print(self.R, self.T, self.qvec)
-        return ""
+    # def __str__(self):
+    #     print(self.R, self.T, self.qvec)
+    #     return ""
 
     def HW_scale(self, h, w):
         return Simple_Camera(self.colmap_id, self.R, self.T, self.FoVx, self.FoVy, h, w, self.image_name, self.uid ,qvec=self.qvec)

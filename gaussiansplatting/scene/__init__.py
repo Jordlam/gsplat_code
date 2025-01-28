@@ -15,6 +15,7 @@ import json
 from gaussiansplatting.utils.system_utils import searchForMaxIteration
 from gaussiansplatting.scene.dataset_readers import sceneLoadTypeCallbacks
 from gaussiansplatting.scene.gaussian_model import GaussianModel
+from gaussiansplatting.scene.deform_model import DeformModel
 from gaussiansplatting.scene.hier_gaussian_model import HierarchicalGaussianModel
 from gaussiansplatting.arguments import ModelParams
 from gaussiansplatting.utils.camera_utils import cameraList_from_camInfos, camera_to_JSON

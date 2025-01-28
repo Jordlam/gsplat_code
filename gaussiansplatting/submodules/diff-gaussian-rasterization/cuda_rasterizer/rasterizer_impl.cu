@@ -177,8 +177,6 @@ CudaRasterizer::BinningState::fromChunk(char *&chunk, size_t P) {
 
 // Forward rendering procedure for differentiable rasterization
 // of Gaussians.
-
-// Bug from call here?
 int CudaRasterizer::Rasterizer::forward(
     std::function<char *(size_t)> geometryBuffer,
     std::function<char *(size_t)> binningBuffer,

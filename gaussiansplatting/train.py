@@ -95,15 +95,17 @@ def training(dataset, opt, pipe, testing_iterations, saving_iterations, checkpoi
         image, viewspace_point_tensor, visibility_filter, radii = render_pkg["render"], render_pkg["viewspace_points"], render_pkg["visibility_filter"], render_pkg["radii"]
 
         # From DGD
-        # feature_map = render_pkg["feature_map"]
-        # image_original_name = viewpoint_cam.image_name
-        # image_name = args.source_path + "/rgb/1x/" + str(image_original_name) + ".png"
-        # feature_extractor = DINOv2_feature_extractor(image_name = image_name, model_dinov2_net = dinov2_vits14, image = None)
-        # feature_map_gt = feature_extractor.extract_feature().permute(2, 0, 1)
-        # target_size = (feature_map_gt.shape[1], feature_map_gt.shape[2])
-        # feature_map_downsampled = F.interpolate(feature_map.unsqueeze(0), size = target_size, mode='bilinear', align_corners=True).squeeze(0)
-        # loss_feature = l1_loss(feature_map_downsampled, feature_map_gt)
-        loss_feature = 0
+        print("We are in this training portion. We should look at this score again!")
+        feature_map = render_pkg["feature_map"]
+        image_original_name = viewpoint_cam.image_name
+        image_name = args.source_path + "/rgb/1x/" + str(image_original_name) + ".png"
+        feature_extractor = DINOv2_feature_extractor(image_name = image_name, model_dinov2_net = dinov2_vits14, image = None)
+        feature_map_gt = feature_extractor.extract_feature().permute(2, 0, 1)
+        target_size = (feature_map_gt.shape[1], feature_map_gt.shape[2])
+        feature_map_downsampled = F.interpolate(feature_map.unsqueeze(0), size = target_size, mode='bilinear', align_corners=True).squeeze(0)
+        loss_feature = l1_loss(feature_map_downsampled, feature_map_gt)
+        # DEBUG: loss_feature = 0
+        print("Got loss feature.")
 
         # Loss
         gt_image = viewpoint_cam.original_image.cuda()

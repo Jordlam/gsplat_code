@@ -48,6 +48,7 @@ def render(
     pipe,
     bg_color: torch.Tensor,
     # d_xyz, d_rotation, d_scaling, is_6dof=False, ###
+    # d_xyz, d_rotation, d_scaling,
     scaling_modifier=1.0,
     override_color=None,
 ):
@@ -127,8 +128,6 @@ def render(
     else:
         colors_precomp = override_color
     semantic_feature = pc.get_semantic_feature
-    # print(semantic_feature.get_device())
-    # print("The bug is about to start from here")
 
     # Maybe print here what the arguments all are
 
@@ -145,18 +144,9 @@ def render(
         rotations=rotations.float(),
         cov3D_precomp=cov3D_precomp,
     )
-    # print(rendered_image.get_device())
-    # print(screenspace_points.get_device())
-    # print(radii.get_device())
-    # print(depth.get_device())
-    # print(feature_map.get_device())
 
     # Those Gaussians that were frustum culled or had a radius of 0 were not visible.
     # They will be excluded from value updates used in the splitting criteria.
-
-    # We cannot print (radii > 0)
-    # print(radii > 0)
-    # print("Trying to print device", feature_map.get_device())
     return {
         "render": rendered_image,
         "viewspace_points": screenspace_points,

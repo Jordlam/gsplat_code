@@ -244,7 +244,6 @@ def readNerfiesCameras(path):
     return cam_infos, train_num, scene_center, coord_scale
 
 def readNerfiesInfo(path, eval):
-    print("Reading Nerfies Info")
     cam_infos, train_num, scene_center, scene_scale = readNerfiesCameras(path)
 
     if eval:
@@ -278,41 +277,10 @@ def readNerfiesInfo(path, eval):
                            test_cameras=test_cam_infos,
                            nerf_normalization=nerf_normalization,
                            ply_path=ply_path)
-    # Debug here
-    # point_cloud: BasicPointCloud
-    # train_cameras: list
-    # test_cameras: list
-    # nerf_normalization: dict
-    # ply_path: str
-
-    # class BasicPointCloud(NamedTuple):
-    #     points : np.array
-    #     colors : np.array
-    #     normals : np.array
     pc = scene_info.point_cloud
     points = pc.points
     colors = pc.colors
     normals = pc.normals
-    # if torch.is_tensor(points) and points.isnan().any().item():
-    #     print("points", points)
-    # if torch.is_tensor(colors) and colors.isnan().any().item():
-    #     print("colors", colors)
-    # if torch.is_tensor(normals) and normals.isnan().any().item():
-    #     print("normals", normals)
-
-    # for k, v in scene_info.nerf_normalization.items():
-    #     if torch.is_tensor(v) and v.isnan().any().item():
-    #         print("nerf_norm", v)
-    
-    # for train_cam in scene_info.train_cameras:
-    #     for v in train_cam:
-    #         if torch.is_tensor(v) and v.isnan().any().item():
-    #             print("train_cam", v)
-
-    # for test_cam in scene_info.test_cameras:
-    #     for v in test_cam:
-    #         if torch.is_tensor(v) and v.isnan().any().item():
-    #             print("test_cam", v)
 
     return scene_info
 

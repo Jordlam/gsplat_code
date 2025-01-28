@@ -3,6 +3,7 @@ import json
 from pathlib import Path
 from PIL import Image
 import torch
+import numpy as np
 from einops import rearrange
 from torchvision.transforms import ToPILImage, ToTensor
 
@@ -23,12 +24,21 @@ class LangSAMTextSegmentor(torch.nn.Module):
         images = rearrange(images, "b h w c -> b c h w")
         masks = []
         for image in images:
-            # breakpoint()
             image = self.to_pil_image(image.clamp(0.0, 1.0))
-            mask, _, _, _ = self.model.predict(image, prompt)
             # breakpoint()
-            if mask.ndim == 3:
-                masks.append(mask[0:1].to(torch.float32))
+            # mask, _, _, _ = self.model.predict(image, prompt)
+            # breakpoint()
+            # if mask.ndim == 3:
+            #     masks.append(mask[0:1].to(torch.float32))
+
+            # fix local editing TODO this is very slow
+            image, prompt = [image], [prompt]
+            mask = self.model.predict(image, prompt)[0]["masks"]
+            if isinstance(mask, np.ndarray) and mask.ndim == 3:
+                mask = self.to_tensor(mask)
+                mask = mask[0:1].to(torch.float32)
+                mask = mask.squeeze(0)
+                masks.append(mask)
             else:
                 print(f"None {prompt} Detected")
                 masks.append(torch.zeros_like(images[0, 0:1]))

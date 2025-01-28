@@ -316,7 +316,9 @@ class GaussianModel:
 
         # From DGD
         self._semantic_feature = torch.zeros(fused_point_cloud.shape[0], self.semantic_feature_dim, 1).float().cuda()
-        self._semantic_feature = nn.Parameter(self._semantic_feature.transpose(1, 2).contiguous().requires_grad_(True))
+        self._semantic_feature = nn.Parameter(self._semantic_feature.transpose(1, 2).contiguous().requires_grad_(False))
+        # No gradient required for editing
+        # self._semantic_feature = nn.Parameter(self._semantic_feature.transpose(1, 2).contiguous().requires_grad_(True))
 
         self._xyz = nn.Parameter(fused_point_cloud.requires_grad_(True))
         self._features_dc = nn.Parameter(
@@ -511,8 +513,9 @@ class GaussianModel:
 
         # From DGD
         count = sum(1 for name in plydata.elements[0].data.dtype.names if name.startswith("sem_"))
-        semantic_feature = np.stack([np.asarray(plydata.elements[0][f"sem_{i}"]) for i in range(count)], axis=1) 
-        semantic_feature = np.expand_dims(semantic_feature, axis=-1) 
+        semantic_feature = np.stack([np.asarray(plydata.elements[0][f"sem_{i}"]) for i in range(count)], axis=1)
+        semantic_feature = np.expand_dims(semantic_feature, axis=-1)
+        # We checked and it looks like none of the semantic features have a NaN value here
 
         scale_names = [
             p.name
@@ -558,7 +561,9 @@ class GaussianModel:
         self._rotation = nn.Parameter(
             torch.tensor(rots, dtype=torch.float, device="cuda").requires_grad_(True)
         )
-        self._semantic_feature = nn.Parameter(torch.tensor(semantic_feature, dtype=torch.float, device="cuda").transpose(1, 2).contiguous().requires_grad_(True))
+        # No gradient required for editing
+        # self._semantic_feature = nn.Parameter(torch.tensor(semantic_feature, dtype=torch.float, device="cuda").transpose(1, 2).contiguous().requires_grad_(True))
+        self._semantic_feature = nn.Parameter(torch.tensor(semantic_feature, dtype=torch.float, device="cuda").transpose(1, 2).contiguous().requires_grad_(False))
 
         self.active_sh_degree = self.max_sh_degree
         self._generation = torch.zeros(
@@ -567,6 +572,9 @@ class GaussianModel:
             device="cuda",
             requires_grad=False,
         )  # generation list, begin from zero
+
+        # HERE is the first time we set the mask
+        print("Setting mask from load_ply...")
         self.set_mask(
             torch.ones(
                 self._opacity.shape[0],

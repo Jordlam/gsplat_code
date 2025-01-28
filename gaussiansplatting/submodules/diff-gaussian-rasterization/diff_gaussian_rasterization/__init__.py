@@ -36,7 +36,6 @@ def rasterize_gaussians(
     raster_settings,
 ):
     # apply calls forward
-    # print("About to .apply")
     apply_results = _RasterizeGaussians.apply(
         means3D,
         means2D,
@@ -49,7 +48,6 @@ def rasterize_gaussians(
         cov3Ds_precomp,
         raster_settings,
     )
-    # print("We completed .apply")
     return apply_results
 
 
@@ -91,7 +89,6 @@ class _RasterizeGaussians(torch.autograd.Function):
             raster_settings.prefiltered,
             raster_settings.debug,
         )
-        # args = [t.to(torch.float32).to("cuda") if torch.is_tensor(t) and t.dtype != torch.int else t for t in args]
 
         # Invoke C++/CUDA rasterizer
         if raster_settings.debug:
@@ -117,12 +114,6 @@ class _RasterizeGaussians(torch.autograd.Function):
                 )
                 raise ex
         else:
-            # Debugging
-            # for i, a in enumerate(args):
-            #     if isinstance(a, torch.Tensor):
-            #         print("     ", i, a.dtype, a)
-            #     else:
-            #         print(i, type(a), a)
 
             (
                 num_rendered,
@@ -199,11 +190,6 @@ class _RasterizeGaussians(torch.autograd.Function):
             imgBuffer,
             raster_settings.debug,
         )
-        # args = [t.to(torch.float32).to("cuda") if torch.is_tensor(t) and t.dtype != torch.int else t for t in args]
-        # debug
-        # for i, a in enumerate(args):
-        #     if torch.is_tensor(a):
-        #         print(i, a.get_device())
 
         # Compute gradients for relevant tensors by invoking backward method
         if raster_settings.debug:
@@ -327,9 +313,6 @@ class GaussianRasterizer(nn.Module):
             rotations = torch.Tensor([]).to(torch.float32).to("cuda")
         if cov3D_precomp is None:
             cov3D_precomp = torch.Tensor([]).to(torch.float32).to("cuda")
-        
-        # Do extra torch conversions here?
-        # print("About to rasterize.")
 
         # Invoke C++/CUDA rasterization routine
         return rasterize_gaussians(
@@ -362,6 +345,8 @@ class GaussianRasterizer(nn.Module):
         assert cnt is not None
         assert image_weights is not None
 
+        # image_weights == mask on image
+
         raster_settings = self.raster_settings
         means2D = torch.zeros_like(means3D)
         if shs is None:
@@ -374,7 +359,6 @@ class GaussianRasterizer(nn.Module):
         if cov3Ds_precomp is None:
             cov3Ds_precomp = torch.Tensor([]).to(torch.float32).to("cuda")
 
-        ### DO we use semantic_feature here???
         args = (
             raster_settings.bg,
             means3D,
@@ -398,6 +382,5 @@ class GaussianRasterizer(nn.Module):
             cnt,
             raster_settings.debug,
         )
-        # args = [t.to(torch.float32).to("cuda") if torch.is_tensor(t) and t.dtype != torch.int else t for t in args]
 
         _C.apply_weights(*args)

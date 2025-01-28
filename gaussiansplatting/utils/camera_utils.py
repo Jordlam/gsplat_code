@@ -54,24 +54,34 @@ def loadCam(args, id, cam_info, resolution_scale):
                   image_name=cam_info.image_name, uid=id, data_device=args.data_device)
 
 def cameraList_from_camInfos(cam_infos, resolution_scale, args):
-    camera_list = []
+    # camera_list = []
 
-    for id, c in enumerate(cam_infos):
-        camera_list.append(loadCam(args, id, c, resolution_scale))
+    # for id, c in enumerate(cam_infos):
+    #     camera_list.append(loadCam(args, id, c, resolution_scale))
 
-    return camera_list
+    # return camera_list
+
+    return [
+        loadCam(args, id, c, resolution_scale) for id, c in enumerate(cam_infos)
+    ]
 
 def cameraList_load(cam_infos, h, w):
-    camera_list = []
+    # camera_list = []
 
-    # Simple_Camera could be initialized with h and w == -1?
-    for id, c in enumerate(cam_infos):
-        camera_list.append(
-            Simple_Camera(colmap_id=c.uid, R=c.R, T=c.T,
-                   FoVx=c.FovX, FoVy=c.FovY, h=h, w=w, qvec = c.qvec,
-                   image_name=c.image_name, uid=id, data_device='cuda')
-        )
-    return camera_list
+    # # Simple_Camera could be initialized with h and w == -1?
+    # for id, c in enumerate(cam_infos):
+    #     camera_list.append(
+    #         Simple_Camera(colmap_id=c.uid, R=c.R, T=c.T,
+    #                FoVx=c.FovX, FoVy=c.FovY, h=h, w=w, qvec = c.qvec,
+    #                image_name=c.image_name, uid=id, data_device='cuda')
+    #     )
+    # return camera_list
+
+    return [
+        Simple_Camera(colmap_id=c.uid, R=c.R, T=c.T,
+                FoVx=c.FovX, FoVy=c.FovY, h=h, w=w,
+                image_name=c.image_name, uid=id, data_device='cuda', qvec=c.qvec, fid=c.fid) for id, c in enumerate(cam_infos)
+    ]
 
 def camera_to_JSON(id, camera : Camera):
     Rt = np.zeros((4, 4))

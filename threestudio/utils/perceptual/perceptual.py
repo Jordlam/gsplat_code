@@ -60,16 +60,6 @@ class PerceptualLoss(nn.Module):
                 outs1[kk]
             )
             f0kk, f1kk = feats0[kk], feats1[kk]
-            # assert f0kk.requires_grad, "f0kk is detached"
-            # assert f1kk.requires_grad, "f1kk is detached"
-            # torch.autograd.gradcheck(lambda x: (x - feats1[kk]) ** 2, feats0[kk])
-            # if torch.is_tensor(f0kk) and f0kk.isnan().any().item():
-            #     print("f0kk", f0kk)
-            # if torch.is_tensor(f1kk) and f1kk.isnan().any().item():
-            #     print("f1kk", f1kk)
-            # print((f0kk < 0).any(), "Negative f0kk")
-            # print((f1kk < 0).any(), "Negative f1kk")
-            # print(((f0kk - f1kk) < 0).any(), "Negative f1kk")
             eps = 1e-5
             diff = f0kk - f1kk
             diffs[kk] = diff.clamp(min=eps).abs().square()
