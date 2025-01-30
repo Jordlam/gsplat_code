@@ -10,6 +10,7 @@ from gaussiansplatting.utils.general_utils import get_expon_lr_func
 class DeformModel:
     def __init__(self, is_blender=False, is_6dof=False):
         self.deform = DeformNetwork(is_blender=is_blender, is_6dof=is_6dof).cuda()
+        self.deform = self.deform.to(torch.bfloat16) # works with pytorch lightning. change accordingly
         self.optimizer = None
         self.spatial_lr_scale = 5
 

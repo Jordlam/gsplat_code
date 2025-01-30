@@ -114,7 +114,6 @@ class _RasterizeGaussians(torch.autograd.Function):
                 )
                 raise ex
         else:
-
             (
                 num_rendered,
                 color,

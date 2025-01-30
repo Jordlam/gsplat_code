@@ -90,6 +90,7 @@ class DGE(BaseLift3DSystem):
         )
         self.deform = DeformModel(False, False)
         print("We initialized deform model")
+        # print("We are not loading pretrained deform model")
         self.deform.load_weights(self.cfg.deform_source)
         print("We loaded pretrained deform model")
 
@@ -110,8 +111,8 @@ class DGE(BaseLift3DSystem):
     def get_feature(self, x, y, view, gaussians, pipeline, background, scaling_modifier, override_color, d_xyz, d_rotation, d_scaling, patch=None):
         # TODO patch: currently experiment without using d_xyz, d_rotation, and d_scaling
         with torch.no_grad():
-            # render_feature_dino_pkg = render(view, gaussians, pipeline, background, d_xyz, d_rotation, d_scaling, is_6dof = False, scaling_modifier = scaling_modifier, override_color = override_color)
-            render_feature_dino_pkg = render(view, gaussians, pipeline, background, scaling_modifier = scaling_modifier, override_color = override_color)
+            render_feature_dino_pkg = render(view, gaussians, pipeline, background, d_xyz, d_rotation, d_scaling, override_color = override_color)
+            # render_feature_dino_pkg = render(view, gaussians, pipeline, background, scaling_modifier = scaling_modifier, override_color = override_color)
             image_feature_dino = render_feature_dino_pkg["feature_map"]
         if patch is None:
             return image_feature_dino[:, y, x]
@@ -120,12 +121,14 @@ class DGE(BaseLift3DSystem):
             return a.mean(dim=(1,2))
 
     def calculate_selection_score_DINOv2(self, features, query_feature, score_threshold=0.8):
-        # clamping added so not divide by 0
         # features /= features.norm(dim=-1, keepdim=True)
         # query_feature /= query_feature.norm(dim=-1, keepdim=True)
+        # scores = features.half() @ query_feature.half()
+
+        # clamping added so not divide by 0
         features /= features.norm(dim=-1, keepdim=True).clamp(min=1e-6)
         query_feature /= query_feature.norm(dim=-1, keepdim=True).clamp(min=1e-6)
-        scores = features.half() @ query_feature.half()
+        scores = features @ query_feature
         scores = scores[:, 0]
         mask = (scores >= score_threshold).float()
         return mask
@@ -161,13 +164,14 @@ class DGE(BaseLift3DSystem):
             fid = view.fid
             xyz = self.gaussian.get_xyz
             time_input = fid.unsqueeze(0).expand(xyz.shape[0], -1)
-            d_xyz, d_rotation, d_scaling = self.deform.step(xyz.detach(), time_input)                
+            with torch.no_grad():
+                d_xyz, d_rotation, d_scaling = self.deform.step(xyz.detach(), time_input)                
 
             # point "(270,370)" hardcoded to be the cookie
             # --thetas "0.55" hardcoded to be best threshold
             i = 0 # lazy
             points = [(270, 370)]
-            thetas = [0.55]
+            thetas = [0.55] # this might be a universal threshold
 
             query_feature = self.get_feature(points[i][0], points[i][1], view, self.gaussian, self.pipe, self.background_tensor, 1.0,
                                         semantic_features[:,0,:], d_xyz, d_rotation, d_scaling, patch = (5,5))
@@ -258,17 +262,15 @@ class DGE(BaseLift3DSystem):
         self.viewspace_point_list = []
         self.gaussian.localize = local
         for id, cam in enumerate(batch["camera"]):
+            view = cam
+            fid = view.fid
+            xyz = self.gaussian.get_xyz
+            time_input = fid.unsqueeze(0).expand(xyz.shape[0], -1)
+            with torch.no_grad():
+                d_xyz, d_rotation, d_scaling = self.deform.step(xyz.detach(), time_input)
 
-            # Quick bug fix?
-            # if id == 0:
-            #     print(cam.full_proj_transform.dtype)
-            cam.full_proj_transform = cam.full_proj_transform.to(torch.float32)
-            # if id == 0:
-            #     print(cam.full_proj_transform.dtype)
-            if cam.image_height == -1 or cam.image_width == -1:
-                print("Image is not right")
-
-            render_pkg = render(cam, self.gaussian, self.pipe, renderbackground)
+            # render_pkg = render(cam, self.gaussian, self.pipe, renderbackground)
+            render_pkg = render(cam, self.gaussian, self.pipe, renderbackground, d_xyz, d_rotation, d_scaling)
             image, viewspace_point_tensor, _, radii = (
                 render_pkg["render"],
                 render_pkg["viewspace_points"],
@@ -290,6 +292,9 @@ class DGE(BaseLift3DSystem):
                 self.gaussian,
                 self.pipe,
                 renderbackground,
+                d_xyz,
+                d_rotation,
+                d_scaling,
                 override_color=self.gaussian.mask[..., None].float().repeat(1, 3),
             )["render"]
             semantic_map = torch.norm(semantic_map, dim=0)
@@ -667,8 +672,6 @@ class DGE(BaseLift3DSystem):
                 #     cached_image / 255, device="cuda", dtype=torch.float32
                 # )[None]
                 self.origin_frames[id] = frame_t
-                if torch.is_tensor(frame_t) and frame_t.isnan().any().item():
-                    print("Printing the frame_t here", frame_t)
                 original_frames.append(self.origin_frames[id])
             images = torch.cat(images, dim=0)
             original_frames = torch.cat(original_frames, dim=0)

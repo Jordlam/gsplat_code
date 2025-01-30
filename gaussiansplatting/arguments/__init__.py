@@ -54,6 +54,8 @@ class ModelParams(ParamGroup):
         self._white_background = False
         self.data_device = "cuda"
         self.eval = False
+        self.fundation_model = "" # "DINOv2", "Lseg_CLIP"
+        self.semantic_dimension = 0 # 384: DINOv2, 512: Lseg_CLIP
         super().__init__(parser, "Loading Parameters", sentinel)
 
     def extract(self, args):
@@ -88,6 +90,8 @@ class OptimizationParams(ParamGroup):
         self.densify_grad_threshold = 0.0002
         self.loss_reduce = 0.5 ###
         self.semantic_feature_lr = 0.0025 ###
+        self.frame = 0 ###
+        self.novel_views = -1 ###
         super().__init__(parser, "Optimization Parameters")
 
 # class EditOptimizationParams(ParamGroup):

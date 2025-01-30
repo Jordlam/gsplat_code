@@ -48,7 +48,7 @@ def render(
     pipe,
     bg_color: torch.Tensor,
     # d_xyz, d_rotation, d_scaling, is_6dof=False, ###
-    # d_xyz, d_rotation, d_scaling,
+    d_xyz, d_rotation, d_scaling,
     scaling_modifier=1.0,
     override_color=None,
 ):
@@ -91,7 +91,8 @@ def render(
 
     rasterizer = GaussianRasterizer(raster_settings=raster_settings)
 
-    means3D = pc.get_xyz
+    means3D = pc.get_xyz + d_xyz
+    # means3D = pc.get_xyz
     means2D = screenspace_points
     opacity = pc.get_opacity
 
@@ -103,8 +104,10 @@ def render(
     if pipe.compute_cov3D_python:
         cov3D_precomp = pc.get_covariance(scaling_modifier)
     else:
-        scales = pc.get_scaling
-        rotations = pc.get_rotation
+        scales = pc.get_scaling + d_scaling
+        rotations = pc.get_rotation + d_rotation
+        # scales = pc.get_scaling
+        # rotations = pc.get_rotation
 
     # If precomputed colors are provided, use them. Otherwise, if it is desired to precompute colors
     # from SHs in Python, do it. If not, then SH -> RGB conversion will be done by rasterizer.

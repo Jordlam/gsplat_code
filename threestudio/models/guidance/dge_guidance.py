@@ -49,13 +49,13 @@ class DGEGuidance(BaseObject):
     def configure(self) -> None:
         threestudio.info(f"Loading InstructPix2Pix ...")
 
-        # self.weights_dtype = (
-        #     torch.float16 if self.cfg.half_precision_weights else torch.float32
-        # )
         self.weights_dtype = (
-            torch.float32
+            torch.float16 if self.cfg.half_precision_weights else torch.float32
         )
-        print(self.weights_dtype, "Weights are type")
+        # self.weights_dtype = (
+        #     torch.float32
+        # )
+        # print(self.weights_dtype, "Weights are type")
 
         pipe_kwargs = {
             "safety_checker": None,
@@ -273,7 +273,6 @@ class DGEGuidance(BaseObject):
                     # get previous sample, continue loop
                     latents = self.scheduler.step(noise_pred, t, latents).prev_sample
                     
-        print("Editing finished.")
         return latents
 
     def compute_grad_sds(

@@ -109,6 +109,7 @@ class DeformNetwork(nn.Module):
             t_emb = self.timenet(t_emb)  # better for D-NeRF Dataset
         x_emb = self.embed_fn(x)
         h = torch.cat([x_emb, t_emb], dim=-1)
+        # TODO bug here?
         for i, l in enumerate(self.linear):
             h = self.linear[i](h)
             h = F.relu(h)
