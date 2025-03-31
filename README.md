@@ -4,7 +4,7 @@
 Obtain pre-trained Gaussians via https://github.com/Jordlam/dgd_edits
 
 —> Copy dataset to DGE:
-```cp -r ~/DGD-Dynamic-3D-Gaussians-Distillation/data/hypernerf/cookie_DINO_40000 ./gsplat_data/hypernerf && cp -r ~/DGD-Dynamic-3D-Gaussians-Distillation/data/hypernerf/split-cookie ./gsplat_data/hypernerf```
+```cp -r ~/dgd_edits/data/hypernerf/cookie_DINO_40000 ./gsplat_data/hypernerf && cp -r ~/dgd_edits/data/hypernerf/split-cookie ./gsplat_data/hypernerf```
 
 For editing:
 ```python launch.py --config configs/dge.yaml --train data.source=gsplat_data/hypernerf/split-cookie system.gs_source=gsplat_data/hypernerf/cookie_DINO_40000/point_cloud/iteration_40000/point_cloud.ply system.deform_source=gsplat_data/hypernerf/cookie_DINO_40000 system.prompt_processor.prompt="change all to pizza" system.ratio=4 system.points="(135,170)" system.thetas="0.55"```
