@@ -3,7 +3,7 @@
 ## Commands
 Obtain pre-trained Gaussians via https://github.com/Jordlam/dgd_edits
 
-—> Copy dataset to DGE:
+—> Copy dataset to gsplat_code:
 ```cp -r ~/dgd_edits/data/hypernerf/cookie_DINO_40000 ./gsplat_data/hypernerf && cp -r ~/dgd_edits/data/hypernerf/split-cookie ./gsplat_data/hypernerf```
 
 For editing:
