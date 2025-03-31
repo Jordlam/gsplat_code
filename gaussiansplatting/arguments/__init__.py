@@ -56,6 +56,7 @@ class ModelParams(ParamGroup):
         self.eval = False
         self.fundation_model = "" # "DINOv2", "Lseg_CLIP"
         self.semantic_dimension = 0 # 384: DINOv2, 512: Lseg_CLIP
+        # self.ratio = 1 #for using different image sizes
         super().__init__(parser, "Loading Parameters", sentinel)
 
     def extract(self, args):

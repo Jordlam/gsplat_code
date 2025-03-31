@@ -207,6 +207,7 @@ class GSLoadDataModuleConfig:
     batch_uniform_azimuth: bool = True
     progressive_until: int = 0 
     use_original_resolution: bool = False # use the original resolution of the image or center crop the image
+    ratio: int = 1 # ratio for dataset_readers.py
 
 
 class GSLoadIterableDataset(IterableDataset, Updateable):
@@ -354,12 +355,12 @@ class GS_load(pl.LightningDataModule):
         if self.cfg.use_original_resolution:
             self.cfg.height = self.cfg.eval_height
             self.cfg.width = self.cfg.eval_width
-        
+
         self.train_scene = CamScene(
-            self.cfg.source, h=self.cfg.height, w=self.cfg.width
+            self.cfg.source, h=self.cfg.height, w=self.cfg.width, ratio=self.cfg.ratio
         )
         self.eval_scene = CamScene(
-            self.cfg.source, h=self.cfg.eval_height, w=self.cfg.eval_width
+            self.cfg.source, h=self.cfg.eval_height, w=self.cfg.eval_width, ratio=self.cfg.ratio
         )
 
     def setup(self, stage=None) -> None:

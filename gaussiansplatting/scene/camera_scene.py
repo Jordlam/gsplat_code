@@ -15,7 +15,7 @@ from gaussiansplatting.utils.camera_utils import cameraList_load
 
 
 class CamScene:
-    def __init__(self, source_path, h=512, w=512, aspect=-1):
+    def __init__(self, source_path, h=512, w=512, aspect=-1, ratio=1):
         """b
         :param path: Path to colmap scene main folder.
         """
@@ -35,7 +35,7 @@ class CamScene:
             else:
                 scene_info = sceneLoadTypeCallbacks["Colmap_hw"](source_path, h, w, None, False)
         elif os.path.exists(os.path.join(source_path, "dataset.json")):
-            scene_info = sceneLoadTypeCallbacks["nerfies"](source_path, False)
+            scene_info = sceneLoadTypeCallbacks["nerfies"](source_path, False, ratio)
             if (h == -1 or w == -1):
                 print(h, w, "Image is weird")
             h = scene_info.train_cameras[0].height

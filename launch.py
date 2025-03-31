@@ -98,10 +98,13 @@ def main(args, extras) -> None:
     # parse YAML config to OmegaConf
     cfg: ExperimentConfig
     cfg = load_config(args.config, cli_args=extras, n_gpus=n_gpus)
+    # dynamic ratio training
+    cfg.data["ratio"] = int([i for i in extras if "system.ratio=" in i][0].split("=")[1])
 
     # set a different seed for each device
     pl.seed_everything(cfg.seed + get_rank(), workers=True)
-
+    
+    # dm here is class GS_load
     dm = threestudio.find(cfg.data_type)(cfg.data)
     system: BaseSystem = threestudio.find(cfg.system_type)(
         cfg.system, resumed=cfg.resume is not None
@@ -180,7 +183,7 @@ def main(args, extras) -> None:
         inference_mode=False,
         accelerator="gpu",
         devices=devices,
-        # detect_anomaly=True,
+        detect_anomaly=False,
         **cfg.trainer,
     )
 
@@ -192,10 +195,11 @@ def main(args, extras) -> None:
 
     if args.train:
         trainer.fit(system, datamodule=dm, ckpt_path=cfg.resume)
-        trainer.test(system, datamodule=dm)
-        if args.gradio:
-            # also export assets if in gradio mode
-            trainer.predict(system, datamodule=dm)
+        # DEBUGGING don't do below
+        # trainer.test(system, datamodule=dm)
+        # if args.gradio:
+        #     # also export assets if in gradio mode
+        #     trainer.predict(system, datamodule=dm)
     elif args.validate:
         # manually set epoch and global_step as they cannot be automatically resumed
         set_system_status(system, cfg.resume)

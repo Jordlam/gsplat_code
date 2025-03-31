@@ -93,6 +93,19 @@ class GaussianModel:
         # From DGD
         self._semantic_feature = torch.empty(0)
         self.semantic_feature_dim = semantic_feature_dim
+        self.masks = {}
+        self.current_mask_id = "default"
+        self._mask = None
+    
+    @property
+    def mask(self):
+        # return self.masks[self.current_mask_id]
+        return self._mask
+
+    @mask.setter
+    def mask(self, value):
+        # self.masks[self.current_mask_id] = value
+        self._mask = value
 
     def update_anchor_term(self, anchor_weight_init_g0: float,
                            anchor_weight_init: float,
@@ -329,6 +342,11 @@ class GaussianModel:
         )
         self._scaling = nn.Parameter(scales.requires_grad_(True))
         self._rotation = nn.Parameter(rots.requires_grad_(True))
+
+        # DEBUG: No need for only changing color
+        # self._scaling = nn.Parameter(scales.requires_grad_(False))
+        # self._rotation = nn.Parameter(rots.requires_grad_(False))
+
         self._opacity = nn.Parameter(opacities.requires_grad_(True))
         self.max_radii2D = torch.zeros((self.get_xyz.shape[0]), device="cuda")
         self.active_sh_degree
@@ -338,6 +356,7 @@ class GaussianModel:
             device="cuda",
             requires_grad=False,
         )  # generation list, begin from zero
+        # Default mask is this:
         self.set_mask(
             torch.ones(
                 self._opacity.shape[0],
@@ -561,9 +580,17 @@ class GaussianModel:
         self._rotation = nn.Parameter(
             torch.tensor(rots, dtype=torch.float, device="cuda").requires_grad_(True)
         )
-        # No gradient required for editing
-        # self._semantic_feature = nn.Parameter(torch.tensor(semantic_feature, dtype=torch.float, device="cuda").transpose(1, 2).contiguous().requires_grad_(True))
         self._semantic_feature = nn.Parameter(torch.tensor(semantic_feature, dtype=torch.float, device="cuda").transpose(1, 2).contiguous().requires_grad_(False))
+
+
+        # DEBUG: No need for only changing color
+        # self._scaling = nn.Parameter(
+        #     torch.tensor(scales, dtype=torch.float, device="cuda").requires_grad_(False)
+        # )
+        # self._rotation = nn.Parameter(
+        #     torch.tensor(rots, dtype=torch.float, device="cuda").requires_grad_(False)
+        # )
+        # self._semantic_feature = nn.Parameter(torch.tensor(semantic_feature, dtype=torch.float, device="cuda").transpose(1, 2).contiguous().requires_grad_(False))
 
         self.active_sh_degree = self.max_sh_degree
         self._generation = torch.zeros(
@@ -573,8 +600,7 @@ class GaussianModel:
             requires_grad=False,
         )  # generation list, begin from zero
 
-        # HERE is the first time we set the mask
-        print("Setting mask from load_ply...")
+        # Default mask is this:
         self.set_mask(
             torch.ones(
                 self._opacity.shape[0],
@@ -879,16 +905,17 @@ class GaussianModel:
     def set_mask(self, mask):
         self.mask = mask
 
+    def hash_mask(self, mask, frame_id):
+        self.masks[frame_id] = mask
+
     def apply_grad_mask(self, mask):
-        assert self.mask.shape[0] == self._xyz.shape[0]
+        assert mask.shape[0] == self._xyz.shape[0]
         self.set_mask(mask)
+        # self.hash_mask(mask, self.current_mask_id)
 
         def hook(grad):
-            final_grad = grad * (
-                self.mask[:, None] if grad.ndim == 2 else self.mask[:, None, None]
-            )
-            # print(final_grad.abs().max())
-            # print(final_grad.abs().mean())
+            masker = self.mask[:, None] if grad.ndim == 2 else self.mask[:, None, None]
+            final_grad = grad * masker
             return final_grad
 
         fields = ["_xyz", "_features_dc", "_features_rest", "_opacity", "_scaling"]

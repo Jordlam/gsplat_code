@@ -33,8 +33,15 @@ class DGE(BaseLift3DSystem):
     @dataclass
     class Config(BaseLift3DSystem.Config):
         gs_source: str = None
-        # TODO hard coded deform model path
-        deform_source: str = "gsplat_data/hypernerf/cookie_DINO_10000"
+        deform_source: str = None
+        ratio: int = 1
+        points: str = None
+        thetas: str = None
+        # i.e.
+        # self.segmentations = {
+        #     "cookie": ([(540, 740)], [0.55]),
+        #     "broom": ([(600, 1080)], [0.85])
+        # }
 
         per_editing_step: int = -1
         edit_begin_step: int = 0
@@ -57,12 +64,11 @@ class DGE(BaseLift3DSystem):
         max_grad: float = 1e-7
         min_opacity: float = 0.005
 
-        seg_prompt: str = ""
+        # seg_prompt: str = ""
 
         # cache
         cache_overwrite: bool = True
         cache_dir: str = ""
-
 
         # anchor
         anchor_weight_init: float = 0.1
@@ -77,9 +83,13 @@ class DGE(BaseLift3DSystem):
         # guidance 
         camera_update_per_step: int = 500
         added_noise_schedule: List[int] = field(default_factory=[999, 200, 200, 21])    
-        
 
     cfg: Config
+
+    def get_points(self):
+        return [tuple(int(i) for i in self.cfg.points[1:-1].split(","))]
+    def get_thetas(self):
+        return [float(self.cfg.thetas)]
 
     def configure(self) -> None:
         self.gaussian = GaussianModel(
@@ -88,9 +98,9 @@ class DGE(BaseLift3DSystem):
             anchor_weight_init=self.cfg.anchor_weight_init,
             anchor_weight_multiplier=self.cfg.anchor_weight_multiplier,
         )
+        self.rendered_all_view = False
         self.deform = DeformModel(False, False)
         print("We initialized deform model")
-        # print("We are not loading pretrained deform model")
         self.deform.load_weights(self.cfg.deform_source)
         print("We loaded pretrained deform model")
 
@@ -103,16 +113,17 @@ class DGE(BaseLift3DSystem):
         self.perceptual_loss = PerceptualLoss().eval().to(get_device())
         self.text_segmentor = LangSAMTextSegmentor().to(get_device())
 
+        # For visualizing
+        self.batch_idx = None
+
         if len(self.cfg.cache_dir) > 0:
             self.cache_dir = os.path.join("edit_cache", self.cfg.cache_dir)
         else:
             self.cache_dir = os.path.join("edit_cache", self.cfg.gs_source.replace("/", "-"))
     
     def get_feature(self, x, y, view, gaussians, pipeline, background, scaling_modifier, override_color, d_xyz, d_rotation, d_scaling, patch=None):
-        # TODO patch: currently experiment without using d_xyz, d_rotation, and d_scaling
         with torch.no_grad():
             render_feature_dino_pkg = render(view, gaussians, pipeline, background, d_xyz, d_rotation, d_scaling, override_color = override_color)
-            # render_feature_dino_pkg = render(view, gaussians, pipeline, background, scaling_modifier = scaling_modifier, override_color = override_color)
             image_feature_dino = render_feature_dino_pkg["feature_map"]
         if patch is None:
             return image_feature_dino[:, y, x]
@@ -121,133 +132,74 @@ class DGE(BaseLift3DSystem):
             return a.mean(dim=(1,2))
 
     def calculate_selection_score_DINOv2(self, features, query_feature, score_threshold=0.8):
-        # features /= features.norm(dim=-1, keepdim=True)
-        # query_feature /= query_feature.norm(dim=-1, keepdim=True)
-        # scores = features.half() @ query_feature.half()
-
         # clamping added so not divide by 0
         features /= features.norm(dim=-1, keepdim=True).clamp(min=1e-6)
+        query_feature[query_feature.abs() > 1e5] = 0 # mask query_feature to avoid nan from huge values
         query_feature /= query_feature.norm(dim=-1, keepdim=True).clamp(min=1e-6)
-        scores = features @ query_feature
+        scores = features.half() @ query_feature.half()
         scores = scores[:, 0]
         mask = (scores >= score_threshold).float()
         return mask
-    
-    @torch.no_grad()
-    def update_masks(self, save_name="mask") -> None:
-        print(f"Segment with prompt: {self.cfg.seg_prompt}")
-        mask_cache_dir = os.path.join(
-            self.cache_dir, self.cfg.seg_prompt + f"_{save_name}_{self.view_num}_view"
-        )
-        gs_mask_path = os.path.join(mask_cache_dir, "gs_mask.pt")
-        # TODO for now just grab all the masks:
-        all_the_masks = []
 
-        if not os.path.exists(gs_mask_path) or self.cfg.cache_overwrite:
-            if os.path.exists(mask_cache_dir):
-                shutil.rmtree(mask_cache_dir)
-            os.makedirs(mask_cache_dir)
-            threestudio.info(f"Segmentation with prompt: {self.cfg.seg_prompt}")
-        
-        for id in tqdm(self.view_list):
-            cur_cam = self.trainer.datamodule.train_dataset.scene.cameras[id]
-            pca = PCA(n_components=3)
-            semantic_features = self.gaussian.get_semantic_feature
-
-            pca.fit(semantic_features[:,0,:].detach().cpu())
-            pca_features = pca.transform(semantic_features[:,0,:].detach().cpu())
-            for i in range(3):
-                pca_features[:, i] = (pca_features[:, i] - pca_features[:, i].min()) / (pca_features[:, i].max() - pca_features[:, i].min())
-            pca_features = torch.tensor(pca_features, dtype=torch.float, device = 'cuda', requires_grad = True)
-
-            view = cur_cam
+    def update_mask(self, camera, save_name="mask") -> None:
+        with torch.no_grad():
+            #---start mask rendering---#
+            view = camera
             fid = view.fid
             xyz = self.gaussian.get_xyz
+            semantic_features = self.gaussian.get_semantic_feature
             time_input = fid.unsqueeze(0).expand(xyz.shape[0], -1)
-            with torch.no_grad():
-                d_xyz, d_rotation, d_scaling = self.deform.step(xyz.detach(), time_input)                
+            d_xyz, d_rotation, d_scaling = self.deform.step(xyz.detach(), time_input)
 
-            # point "(270,370)" hardcoded to be the cookie
-            # --thetas "0.55" hardcoded to be best threshold
-            i = 0 # lazy
-            points = [(270, 370)]
-            thetas = [0.55] # this might be a universal threshold
-
+            i = 0
+            points = self.get_points()
+            thetas = self.get_thetas()
             query_feature = self.get_feature(points[i][0], points[i][1], view, self.gaussian, self.pipe, self.background_tensor, 1.0,
                                         semantic_features[:,0,:], d_xyz, d_rotation, d_scaling, patch = (5,5))
             mask = self.calculate_selection_score_DINOv2(semantic_features, query_feature, score_threshold = thetas[i])
+
+            # DEBUG mask step
+            indices = np.where(mask.cpu().numpy() >= thetas[i])[0]
+            # print("Using indices of shape: ", indices.shape)
+            # print("Before zeroing, shapes are: ", self.gaussian._features_dc.shape, self.gaussian._features_rest.shape)
+            # self.gaussian._features_dc[indices, :, :] = RGB2SH(torch.tensor([0, 0, 0], device="cuda"))
+            # self.gaussian._features_rest[indices, :, :] = RGB2SH(0)
+            # print("After zeroing, shapes are: ", self.gaussian._features_dc.shape, self.gaussian._features_rest.shape)
+
             # indices_to_mask = np.where(mask.cpu().numpy() >= thetas[i])[0]
             # The indices_to_mask are just the indices and not the mask itself
-            mask = (mask.cpu() >= thetas[i]).to("cuda")
-            all_the_masks.append(mask)
-        
-        selected_mask = all_the_masks[0] # TODO just one mask for now
-        self.gaussian.set_mask(selected_mask)
-        self.gaussian.apply_grad_mask(selected_mask)
+            mask = (mask.cpu() >= thetas[i]).to("cuda").requires_grad_(False)
+            # mask = (mask.cpu() >= thetas[i]).to("cuda")
+            # self.gaussian.current_mask_id = fid # Not using this currently
+            self.gaussian.apply_grad_mask(mask)
+            #---end mask rendering---#
 
-    @torch.no_grad()
-    def update_mask(self, save_name="mask") -> None:
-        print(f"Segment with prompt: {self.cfg.seg_prompt}")
-        mask_cache_dir = os.path.join(
-            self.cache_dir, self.cfg.seg_prompt + f"_{save_name}_{self.view_num}_view"
-        )
-        gs_mask_path = os.path.join(mask_cache_dir, "gs_mask.pt")
-        if not os.path.exists(gs_mask_path) or self.cfg.cache_overwrite:
-            if os.path.exists(mask_cache_dir):
-                shutil.rmtree(mask_cache_dir)
-            os.makedirs(mask_cache_dir)
-            weights = torch.zeros_like(self.gaussian._opacity)
-            weights_cnt = torch.zeros_like(self.gaussian._opacity, dtype=torch.int32)
-            threestudio.info(f"Segmentation with prompt: {self.cfg.seg_prompt}")
-            for id in tqdm(self.view_list):
-                cur_path = os.path.join(mask_cache_dir, "{:0>4d}.png".format(id))
-                cur_path_viz = os.path.join(
-                    mask_cache_dir, "viz_{:0>4d}.png".format(id)
-                )
+    def combine_mask(self, cameras, save_name="mask") -> None:
+        with torch.no_grad():
+            combined_mask = None
+            for camera in cameras:
+                view = camera
+                fid = view.fid
+                xyz = self.gaussian.get_xyz
+                semantic_features = self.gaussian.get_semantic_feature
+                time_input = fid.unsqueeze(0).expand(xyz.shape[0], -1)
+                d_xyz, d_rotation, d_scaling = self.deform.step(xyz.detach(), time_input)
+                
+                i = 0 # lazy
+                points = self.get_points()
+                thetas = self.get_thetas()
+                query_feature = self.get_feature(points[i][0], points[i][1], view, self.gaussian, self.pipe, self.background_tensor, 1.0,
+                                            semantic_features[:,0,:], d_xyz, d_rotation, d_scaling, patch = (5,5))
+                mask = self.calculate_selection_score_DINOv2(semantic_features, query_feature, score_threshold = thetas[i])
+                mask = mask.cpu() >= thetas[i]
 
-                mask = self.text_segmentor(self.origin_frames[id], self.cfg.seg_prompt)[
-                    0
-                ].to(get_device())
-
-                mask_to_save = (
-                        mask[0]
-                        .cpu()
-                        .detach()[..., None]
-                        .repeat(1, 1, 3)
-                        .numpy()
-                        .clip(0.0, 1.0)
-                        * 255.0
-                ).astype(np.uint8)
-                cv2.imwrite(cur_path, mask_to_save)
-
-                masked_image = self.origin_frames[id].detach().clone()[0]
-                masked_image[mask[0].bool()] *= 0.3
-                masked_image_to_save = (
-                        masked_image.cpu().detach().numpy().clip(0.0, 1.0) * 255.0
-                ).astype(np.uint8)
-                masked_image_to_save = cv2.cvtColor(
-                    masked_image_to_save, cv2.COLOR_RGB2BGR
-                )
-                cv2.imwrite(cur_path_viz, masked_image_to_save)
-                self.gaussian.apply_weights(cur_cam, weights, weights_cnt, mask)
-
-            weights /= weights_cnt + 1e-7
-
-            selected_mask = weights > self.cfg.mask_thres
-            selected_mask = selected_mask[:, 0]
-            torch.save(selected_mask, gs_mask_path)
-        else:
-            print("load cache")
-            for id in tqdm(self.view_list):
-                cur_path = os.path.join(mask_cache_dir, "{:0>4d}.png".format(id))
-                cur_mask = cv2.imread(cur_path)
-                cur_mask = torch.tensor(
-                    cur_mask / 255, device="cuda", dtype=torch.float32
-                )[..., 0][None]
-            selected_mask = torch.load(gs_mask_path)
-
-        self.gaussian.set_mask(selected_mask)
-        self.gaussian.apply_grad_mask(selected_mask)
+                # Combine logic
+                if combined_mask is None:
+                    combined_mask = mask
+                else:
+                    combined_mask |= mask
+            combined_mask = combined_mask.to("cuda").requires_grad_(False)
+            self.gaussian.apply_grad_mask(combined_mask)
 
     def on_validation_epoch_end(self):
         pass
@@ -265,6 +217,7 @@ class DGE(BaseLift3DSystem):
             view = cam
             fid = view.fid
             xyz = self.gaussian.get_xyz
+            semantic_features = self.gaussian.get_semantic_feature
             time_input = fid.unsqueeze(0).expand(xyz.shape[0], -1)
             with torch.no_grad():
                 d_xyz, d_rotation, d_scaling = self.deform.step(xyz.detach(), time_input)
@@ -287,6 +240,15 @@ class DGE(BaseLift3DSystem):
             depth = render_pkg["depth_3dgs"]
             depth = depth.permute(1, 2, 0)
 
+            # either use default (no masking) or use frame's associated mask
+            if self.rendered_all_view and self.cfg.points:
+                if fid not in self.gaussian.masks:
+                    self.update_mask(cam)
+                gaussian_mask = self.gaussian.masks[fid]
+            else:
+                gaussian_mask = self.gaussian.mask # default mask
+            self.gaussian.set_mask(gaussian_mask)
+
             semantic_map = render(
                 cam,
                 self.gaussian,
@@ -295,7 +257,7 @@ class DGE(BaseLift3DSystem):
                 d_xyz,
                 d_rotation,
                 d_scaling,
-                override_color=self.gaussian.mask[..., None].float().repeat(1, 3),
+                override_color=gaussian_mask[..., None].float().repeat(1, 3),
             )["render"]
             semantic_map = torch.norm(semantic_map, dim=0)
             semantic_map = semantic_map > 0.8
@@ -358,6 +320,7 @@ class DGE(BaseLift3DSystem):
                 self.origin_frames[id] = torch.tensor(
                     cached_image / 255, device="cuda", dtype=torch.float32
                 )[None]
+        # self.rendered_all_view = True
 
     def on_before_optimizer_step(self, optimizer):
         with torch.no_grad():
@@ -622,7 +585,6 @@ class DGE(BaseLift3DSystem):
         
         self.edited_cams = []
         if update_camera:
-            # this is in the case that you resume training with new dataset cameras
             self.trainer.datamodule.train_dataset.update_cameras(random_seed = global_step + 1)
             self.view_list = self.trainer.datamodule.train_dataset.n2n_view_index
             sorted_train_view_list = sorted(self.view_list)
@@ -709,8 +671,15 @@ class DGE(BaseLift3DSystem):
         # render_all_view just renders all the dataset images (without editing) and saves them to the cache
         # note: it is called "view" here because each image in the dataset is a view of the scene
 
-        # if len(self.cfg.seg_prompt) > 0:
-        #     self.update_mask()
+        if self.cfg.points:
+            # self.update_mask()
+            # self.mask = self.gaussian.masks[self.gaussian.current_mask_id]
+            # over here, just set the current_mask to the first 0
+            
+            camera_0 = self.trainer.datamodule.train_dataset.scene.cameras[0]
+            self.update_mask(camera_0)
+            # self.combine_mask(self.trainer.datamodule.train_dataset.scene.cameras)
+
         # update_mask here is a function that uses the text_segmentor to segment the images in the dataset
         # it then uses the cuda render functions via .apply_weights() to render an image of the black and white mask
         # the masks then get saved via gaussian.set_mask and gaussian.apply_grad_mask
@@ -719,9 +688,9 @@ class DGE(BaseLift3DSystem):
         # so basically, the mask makes each parameter of the gaussian model calculate with the mask via the hook
 
         # TODO let's change it so we get all the masks for each time frame
-        print("Updating masks...")
-        if len(self.cfg.seg_prompt) > 0:
-            self.update_masks()
+        # print("Updating masks...")
+        # if self.cfg.points:
+        #     self.update_masks()
 
         print("Initializing prompt processor...")
         if len(self.cfg.prompt_processor) > 0:
@@ -745,9 +714,21 @@ class DGE(BaseLift3DSystem):
         # this is the editing heuristic
         # after this on_fit_start, the regular training cycle is called
         # where the below training_step is called for each batch
-
+        print("Starting epochs...")
+ 
     def training_step(self, batch, batch_idx):
-        # print("Editing all view...")
+        self.batch_idx = batch_idx
+
+        if self.cfg.points:
+            # reset all except default
+            for k in [k for k in self.gaussian.masks.keys() if k != "default"]:
+                del self.gaussian.masks[k]
+
+            # DEBUG using only one single mask, zero out
+            # with torch.no_grad():
+            #     indices = np.where(self.gaussian.mask.cpu())[0]
+            #     self.gaussian._features_dc[indices] = RGB2SH(torch.tensor([0, 0, 0], device="cuda"))
+
         if self.true_global_step % self.cfg.camera_update_per_step == 0 and self.cfg.guidance_type == 'dge-guidance' and not self.cfg.loss.use_sds:
             self.edit_all_view(original_render_name='origin_render', cache_name="edited_views", update_camera=self.true_global_step >= self.cfg.camera_update_per_step, global_step=self.true_global_step) 
         # now that on_fit_start has finished, we can edit the rendered views
@@ -768,7 +749,6 @@ class DGE(BaseLift3DSystem):
                 if cur_index not in self.edit_frames:
                     batch_index[img_index] = self.view_list[img_index]
 
-        # print("Forward pass...")
         out = self(batch, local=self.cfg.local_edit)
         # now, we set the local gaussian_model.localize attribute which is used for the masked rendering
         # iterating over the views again, the forward method is called once again
@@ -799,7 +779,6 @@ class DGE(BaseLift3DSystem):
                         self.origin_frames[cur_index],
                         prompt_utils,
                     )
-                 
                     self.edit_frames[cur_index] = result["edit_images"].detach().clone()
 
                 gt_images.append(self.edit_frames[cur_index])
@@ -842,11 +821,89 @@ class DGE(BaseLift3DSystem):
             self.log(f"train_params/{name}", self.C(value))
         return {"loss": loss}
     
+    def visualize(self, gradient_norm, name):
+        import matplotlib.pyplot as plt
+        import matplotlib.cm as cm
+
+        # Retrieve
+        x = self.gaussian._xyz[:, 0].cpu().detach().numpy()
+        y = self.gaussian._xyz[:, 1].cpu().detach().numpy()
+        z = self.gaussian._xyz[:, 2].cpu().detach().numpy()
+
+        fig = plt.figure(figsize=(8,6))
+        ax = fig.add_subplot(111, projection='3d')
+
+        # 1D to 2D arrays
+        x_grid, y_grid = np.meshgrid(x, y)
+        z_grid = np.interp(x_grid.flatten(), x, z).reshape(x_grid.shape)
+    
+        colormap = cm.viridis
+        colors = colormap(gradient_norm)
+        surf = ax.plot_surface(x_grid, y_grid, z_grid, facecolors=colors, linewidth=0, antialiased=False)
+        plt.colorbar(surf)
+
+        ax.set_title(f"Gradient Norm: {name}")
+        ax.set_xlabel("X axis")
+        ax.set_ylabel("Y axis")
+        ax.set_zlabel("Z axis")
+
+        path = f"{self.cfg.deform_source}/gradients/"
+        plt.savefig(os.path.join(path, f"{name}/{self.batch_idx}.png"))
+        plt.close()
+
+        # plt.figure(figsize=(8,6))
+        # plt.add_subplot(111, projection='3d')
+        # plt.plot_surface(x, y, z, facecolors=colors, linewidth=0, antialiased=False)
+        # plt.colorbar()
+        # plt.title(f"Gradient Norm: {name}")
+        # plt.xlabel("X axis")
+        # plt.ylabel("Y axis")
+        # plt.zlabel("Z axis")
+
     # Debugging
     def backward(self, loss):
         # print("We are entering the backward step")
         if loss.isnan() or loss.isinf():
             print("Bad batch found.")
             return
+
+        # Don't forget this!
         loss.backward()
-        # print("Finished backward step")
+
+        # Printing gradients DEBUG
+        threshold = 1e-6
+        
+        # if self.visualize and self.batch_idx % 10 == 0:
+            # for param in self.gaussian.params_list:
+            #     name = param["name"]
+            #     param = param["params"][0]
+            #     if name == "f_dc":
+            #         param = param.detach().squeeze(1)
+            #     if name == "f_rest":
+            #         param = param.detach().norm(dim=1)
+            #     gauss_params = ["scaling", "rotation", "opacity", "xyz", "f_dc", "f_rest"]
+            #     other_params = ["f_rest"]
+
+            #     if name in gauss_params and param.grad is not None:
+            #         print(f"{name} has shape:", param.grad.shape)
+            #         self.visualize(param.grad.norm(dim=1).cpu().numpy(), name)
+            #     else:
+            #         if param.grad.norm() < threshold:
+            #             print(f"Gradients for {name} are zero.")
+            #         else:
+            #             print(f"Gradients for {name} are non-zero.")
+            # print("\n")
+    
+    def on_train_end(self):
+        print("Training ended.")
+        visualize = False
+
+        if visualize:
+            indices = np.where(self.gaussian.mask.cpu())[0]
+            gradients = self.gaussian._features_dc.grad[indices]
+            gradients = (gradients - gradients.min()) / (gradients.max() - gradients.min()).clamp(min=1e-6)
+            with torch.no_grad(): # b/c in-place assignment should not be tracked by gradients
+                self.gaussian._features_dc[indices] = RGB2SH(gradients)
+                self.gaussian._features_rest[indices, :, :] = RGB2SH(0)
+        path = f"{self.cfg.deform_source}/edit/"
+        self.gaussian.save_ply(os.path.join(path, "point_cloud.ply"))

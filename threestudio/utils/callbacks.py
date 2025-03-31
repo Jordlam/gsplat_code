@@ -112,8 +112,10 @@ class ConfigSnapshotCallback(VersionedCallback):
 
 class CustomProgressBar(TQDMProgressBar):
     def get_metrics(self, *args, **kwargs):
-        # don't show the version number
         items = super().get_metrics(*args, **kwargs)
+        # make sure DGE is the second argument to display gaussians
+        items["Num_Gaussians"] = f"{args[1].gaussian._xyz.shape[0]}"
+        # don't show the version number
         items.pop("v_num", None)
         return items
 
