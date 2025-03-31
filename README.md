@@ -10,7 +10,7 @@ For editing:
 ```python launch.py --config configs/dge.yaml --train data.source=gsplat_data/hypernerf/split-cookie system.gs_source=gsplat_data/hypernerf/cookie_DINO_40000/point_cloud/iteration_40000/point_cloud.ply system.deform_source=gsplat_data/hypernerf/cookie_DINO_40000 system.prompt_processor.prompt="change all to pizza" system.ratio=4 system.points="(135,170)" system.thetas="0.55"```
 
 For rendering2 (```cd``` into dgd_edits):
-```cp ~/gsplat_code/gsplat_data/hypernerf/cookie_DINO_40000/edit/point_cloud.ply ./data/hypernerf/cookie_DINO_40000/point_cloud/iteration_40000/point_cloud.ply && python render2.py -s ./data/hypernerf/split-cookie/ -m ./data/hypernerf/cookie_DINO_40000 --fundation_model "DINOv2" --semantic_dimension 384 --iterations 40_000 --frame 39 --novel_views -1 --total 233 --ratio 4```
+```cp ./data/hypernerf/cookie_DINO_40000/point_cloud/iteration_40000/point_cloud.ply ./data/hypernerf/cookie_DINO_40000/point_cloud/iteration_40000/point_cloud_orig.ply && cp ~/gsplat_code/gsplat_data/hypernerf/cookie_DINO_40000/edit/point_cloud.ply ./data/hypernerf/cookie_DINO_40000/point_cloud/iteration_40000/point_cloud.ply && python render2.py -s ./data/hypernerf/split-cookie/ -m ./data/hypernerf/cookie_DINO_40000 --fundation_model "DINOv2" --semantic_dimension 384 --iterations 40_000 --frame 39 --novel_views -1 --total 233 --ratio 4```
 
 Additional data for DGD inputs and pretrained Gaussians can be found at https://drive.google.com/drive/folders/1swQeiLSrIcP3jqn-ycHVylfPYsSaqpw-?usp=sharing
 
