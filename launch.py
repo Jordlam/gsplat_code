@@ -99,7 +99,9 @@ def main(args, extras) -> None:
     cfg: ExperimentConfig
     cfg = load_config(args.config, cli_args=extras, n_gpus=n_gpus)
     # dynamic ratio training
-    cfg.data["ratio"] = int([i for i in extras if "system.ratio=" in i][0].split("=")[1])
+    ratio_arg = [i for i in extras if "system.ratio=" in i]
+    if len(ratio_arg) > 0:
+        cfg.data["ratio"] = int(ratio_arg[0].split("=")[1])
 
     # set a different seed for each device
     pl.seed_everything(cfg.seed + get_rank(), workers=True)

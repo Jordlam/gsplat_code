@@ -35,8 +35,8 @@ class DGE(BaseLift3DSystem):
         gs_source: str = None
         deform_source: str = None
         ratio: int = 1
-        points: str = None
-        thetas: str = None
+        points: str = ""
+        thetas: str = ""
         # i.e.
         # self.segmentations = {
         #     "cookie": ([(540, 740)], [0.55]),
@@ -155,7 +155,7 @@ class DGE(BaseLift3DSystem):
             points = self.get_points()
             thetas = self.get_thetas()
             query_feature = self.get_feature(points[i][0], points[i][1], view, self.gaussian, self.pipe, self.background_tensor, 1.0,
-                                        semantic_features[:,0,:], d_xyz, d_rotation, d_scaling, patch = (5,5))
+                                        semantic_features[:,0,:], d_xyz, d_rotation, d_scaling, patch = (10, 10))
             mask = self.calculate_selection_score_DINOv2(semantic_features, query_feature, score_threshold = thetas[i])
 
             # DEBUG mask step
@@ -697,6 +697,7 @@ class DGE(BaseLift3DSystem):
             self.prompt_processor = threestudio.find(self.cfg.prompt_processor_type)(
                 self.cfg.prompt_processor
             )
+            print(f"Initialized prompt processor with prompt {self.cfg.prompt_processor.prompt}")
         # this processes the editing prompt (not the segmentation)
         # for example cfg.prompt_processor is a dictionary like so:
         # {
@@ -719,10 +720,10 @@ class DGE(BaseLift3DSystem):
     def training_step(self, batch, batch_idx):
         self.batch_idx = batch_idx
 
-        if self.cfg.points:
-            # reset all except default
-            for k in [k for k in self.gaussian.masks.keys() if k != "default"]:
-                del self.gaussian.masks[k]
+        # if self.cfg.points:
+        #     # reset all except default
+        #     for k in [k for k in self.gaussian.masks.keys() if k != "default"]:
+        #         del self.gaussian.masks[k]
 
             # DEBUG using only one single mask, zero out
             # with torch.no_grad():
@@ -906,4 +907,7 @@ class DGE(BaseLift3DSystem):
                 self.gaussian._features_dc[indices] = RGB2SH(gradients)
                 self.gaussian._features_rest[indices, :, :] = RGB2SH(0)
         path = f"{self.cfg.deform_source}/edit/"
-        self.gaussian.save_ply(os.path.join(path, "point_cloud.ply"))
+        name = "point_cloud.ply"
+        if len(self.cfg.prompt_processor) > 0:
+            name = f"point_cloud_{self.cfg.prompt_processor.prompt.split()[-1]}.ply"
+        self.gaussian.save_ply(os.path.join(path, name))

@@ -209,7 +209,7 @@ def readNerfiesCameras(path, ratio):
 
     # all poses
     all_cam_params = []
-    print("Using images:", all_img)
+    # print("Using images:", all_img)
     for im in all_img:
         camera = camera_nerfies_from_JSON(f'{path}/camera/{im}.json', ratio)
         camera['position'] = camera['position'] - scene_center
