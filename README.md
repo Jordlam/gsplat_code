@@ -6,11 +6,11 @@ Obtain pre-trained Gaussians via https://github.com/Jordlam/dgd_edits
 Removing edit cache:
 ```rm -r ./.threestudio_cache && rm -r ./edit_cache && rm -r ./outputs/dge/*```
 
-For editing: (please remove cache before)
-```python launch.py --config configs/dge.yaml --train data.source=data/hypernerf/split-cookie system.gs_source=data/hypernerf/cookie_DINO_40000/point_cloud/iteration_40000/point_cloud.ply system.deform_source=data/hypernerf/cookie_DINO_40000 system.prompt_processor.prompt="change cookie to pizza" system.ratio=4 system.points="(135,170)" system.thetas="0.55"```
-
 We copy segmented 3D Gaussians to avoid mutating them:
 ```cp ./data/hypernerf/cookie_DINO_40000/point_cloud/iteration_40000/point_cloud.ply ./data/hypernerf/cookie_DINO_40000/point_cloud/iteration_40000/orig_point_cloud.ply```
+
+For editing: (please remove cache before)
+```python launch.py --config configs/dge.yaml --train data.source=data/hypernerf/split-cookie system.gs_source=data/hypernerf/cookie_DINO_40000/point_cloud/iteration_40000/point_cloud.ply system.deform_source=data/hypernerf/cookie_DINO_40000 system.prompt_processor.prompt="change cookie to pizza" system.ratio=4 system.points="(135,170)" system.thetas="0.55"```
 
 For rendering2 (```cd``` into dgd_edits):
 ```cp ./data/hypernerf/cookie_DINO_40000/edits/point_cloud_pizza.ply ./data/hypernerf/cookie_DINO_40000/point_cloud/iteration_40000/point_cloud.ply && python render2.py -s ./data/hypernerf/split-cookie/ -m ./data/hypernerf/cookie_DINO_40000 --fundation_model "DINOv2" --semantic_dimension 384 --iterations 40_000 --frame 39 --novel_views -1 --total 223 --ratio 4```
