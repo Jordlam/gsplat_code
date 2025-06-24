@@ -57,7 +57,7 @@ For editing: (please remove cache before)
 For rendering2 (```cd``` into dgd_edits):
 ```cp ./data/hypernerf/cookie_DINO_40000/edits/point_cloud_pizza.ply ./data/hypernerf/cookie_DINO_40000/point_cloud/iteration_40000/point_cloud.ply && python render2.py -s ./data/hypernerf/split-cookie/ -m ./data/hypernerf/cookie_DINO_40000 --fundation_model "DINOv2" --semantic_dimension 384 --iterations 40_000 --frame 39 --novel_views -1 --total 223 --ratio 4```
 
-# Reference the original repository
+## Reference the original repository
 
 [Minghao Chen](https://silent-chen.github.io), [Iro Laina](), [Andrea Vedaldi](https://www.robots.ox.ac.uk/~vedaldi/)
 
