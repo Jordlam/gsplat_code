@@ -1,5 +1,6 @@
 # Jordlam's Changes to DGE
 Changes made to DGE to perform editing of dynamic 3D Gaussians.
+
 ![cookie_ground_truth](./demo/cookie_gt.gif)
 ![cookie_baseline](./demo/cookie_baseline.gif)
 ![cookie_pizza](./demo/cookie_pizza.gif)
