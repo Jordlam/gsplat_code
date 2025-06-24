@@ -47,7 +47,6 @@ def render(
     pc,
     pipe,
     bg_color: torch.Tensor,
-    # d_xyz, d_rotation, d_scaling, is_6dof=False, ###
     d_xyz, d_rotation, d_scaling,
     scaling_modifier=1.0,
     override_color=None,
@@ -92,7 +91,6 @@ def render(
     rasterizer = GaussianRasterizer(raster_settings=raster_settings)
 
     means3D = pc.get_xyz + d_xyz
-    # means3D = pc.get_xyz
     means2D = screenspace_points
     opacity = pc.get_opacity
 
@@ -106,8 +104,6 @@ def render(
     else:
         scales = pc.get_scaling + d_scaling
         rotations = pc.get_rotation + d_rotation
-        # scales = pc.get_scaling
-        # rotations = pc.get_rotation
 
     # If precomputed colors are provided, use them. Otherwise, if it is desired to precompute colors
     # from SHs in Python, do it. If not, then SH -> RGB conversion will be done by rasterizer.
@@ -135,7 +131,6 @@ def render(
     # Maybe print here what the arguments all are
 
     # Rasterize visible Gaussians to image, obtain their radii (on screen).
-    # import pdb; pdb.set_trace()
     rendered_image, radii, depth, feature_map = rasterizer(
         means3D=means3D.float(),
         means2D=means2D.float(),
@@ -153,23 +148,17 @@ def render(
     return {
         "render": rendered_image,
         "viewspace_points": screenspace_points,
-        # "visibility_filter": radii,
         "visibility_filter": radii > 0,
         "radii": radii,
         "depth_3dgs": depth,
         'feature_map': feature_map
     }
 
-
-# from gaussiansplatting.scene.gaussian_model import GaussianModel
-
-
 def point_cloud_render(
     viewpoint_camera,
     xyz,
     pipe,
     bg_color: torch.Tensor,
-    # d_xyz, d_rotation, d_scaling, is_6dof=False, ###
     scaling_modifier=1.0,
     override_color=None,
 ):
@@ -219,28 +208,10 @@ def point_cloud_render(
     # from SHs in Python, do it. If not, then SH -> RGB conversion will be done by rasterizer.
     shs = None
     colors_precomp = None
-    # if override_color is None:
-    #     if pipe.convert_SHs_python:
-    #         shs_view = pc.get_features.transpose(1, 2).view(
-    #             -1, 3, (pc.max_sh_degree + 1) ** 2
-    #         )
-    #         dir_pp = pc.get_xyz - viewpoint_camera.camera_center.repeat(
-    #             pc.get_features.shape[0], 1
-    #         )
-    #         dir_pp_normalized = dir_pp / dir_pp.norm(dim=1, keepdim=True)
-    #         sh2rgb = eval_sh(pc.active_sh_degree, shs_view, dir_pp_normalized)
-    #         colors_precomp = torch.clamp_min(sh2rgb + 0.5, 0.0)
-    #     else:
-    #         shs = pc.get_features
-
-    #     shs = shs.float()
-    # else:
-    #     colors_precomp = override_color
     colors_precomp = torch.ones_like(xyz[..., 0:1]).repeat(1, 3)
     semantic_feature = None
 
     # Rasterize visible Gaussians to image, obtain their radii (on screen).
-    # import pdb; pdb.set_trace()
     rendered_image, radii, depth, feature_map = rasterizer(
         means3D=means3D.float(),
         means2D=means2D.float(),

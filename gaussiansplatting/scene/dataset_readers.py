@@ -113,8 +113,6 @@ def readCamerasFromTransforms(path, transformsfile, white_background, extension=
             # Edit this DGD code for DGE
             qvec = rotmat2qvec(R)
             fid = frame['time']
-
-            # image_path = os.path.join(path, cam_name)
             image_name = Path(cam_name).stem
 
             # if using DNeRF dataset
@@ -200,16 +198,12 @@ def readNerfiesCameras(path, ratio):
         print("Loading images with ratio:", ratio)
 
     train_num = len(train_img)
-
-    all_cam = [meta_json[i]['camera_id'] for i in all_img]
     all_time = [meta_json[i]['time_id'] for i in all_img]
     max_time = max(all_time)
     all_time = [meta_json[i]['time_id'] / max_time for i in all_img]
-    selected_time = set(all_time)
 
     # all poses
     all_cam_params = []
-    # print("Using images:", all_img)
     for im in all_img:
         camera = camera_nerfies_from_JSON(f'{path}/camera/{im}.json', ratio)
         camera['position'] = camera['position'] - scene_center
@@ -280,9 +274,6 @@ def readNerfiesInfo(path, eval, ratio):
                            nerf_normalization=nerf_normalization,
                            ply_path=ply_path)
     pc = scene_info.point_cloud
-    points = pc.points
-    colors = pc.colors
-    normals = pc.normals
 
     return scene_info
 
@@ -323,8 +314,6 @@ def readNerfSyntheticInfo(path, white_background, eval, extension=".png"):
     return scene_info
 
 sceneLoadTypeCallbacks = {
-    # "Colmap": readColmapSceneInfo,
-    # "Colmap_hw": readColmapSceneInfo_hw,
     "Blender" : readNerfSyntheticInfo,
     "nerfies": readNerfiesInfo,
 }

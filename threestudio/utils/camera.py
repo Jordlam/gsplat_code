@@ -18,7 +18,6 @@ def camera_ray_sample_points(
 
     # Fuck this shit transpose
     c2w = torch.inverse(camera.world_view_transform.T)
-    # c2w = camera.world_view_transform
     R = c2w[:3, :3]
     T = c2w[:3, 3]
 
@@ -69,7 +68,6 @@ def camera_ray_sample_points(
 
 
 def project(camera: Simple_Camera, points3d):
-    # TODO: should be equivalent to full_proj_transform.T
     if isinstance(points3d, list):
         points3d = torch.stack(points3d, dim=0)
     w2c = camera.world_view_transform.T

@@ -141,7 +141,6 @@ class _RasterizeGaussians(torch.autograd.Function):
             binningBuffer,
             imgBuffer,
         )
-        # return color, radii, depth
         return color, radii, depth, feature_map
 
     @staticmethod
@@ -284,7 +283,6 @@ class GaussianRasterizer(nn.Module):
         rotations=None,
         cov3D_precomp=None,
     ):
-        # print("Fixing settings.")
         raster_settings = self.raster_settings
 
         if (shs is None and colors_precomp is None) or (
@@ -343,8 +341,6 @@ class GaussianRasterizer(nn.Module):
         assert weights is not None
         assert cnt is not None
         assert image_weights is not None
-
-        # image_weights == mask on image
 
         raster_settings = self.raster_settings
         means2D = torch.zeros_like(means3D)

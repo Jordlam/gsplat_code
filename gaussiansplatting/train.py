@@ -51,10 +51,6 @@ def training(dataset, opt, pipe, testing_iterations, saving_iterations, checkpoi
     progress_bar = tqdm(range(first_iter, opt.iterations), desc="Training progress")
     first_iter += 1
 
-    # From DGD
-    # dinov2_vits14 = torch.hub.load('facebookresearch/dinov2', 'dinov2_vits14')
-    # dinov2_vits14.to('cuda')
-
     for iteration in range(first_iter, opt.iterations + 1):        
         if network_gui.conn == None:
             network_gui.try_connect()
@@ -84,10 +80,6 @@ def training(dataset, opt, pipe, testing_iterations, saving_iterations, checkpoi
             viewpoint_stack = scene.getTrainCameras().copy()
         viewpoint_cam = viewpoint_stack.pop(randint(0, len(viewpoint_stack)-1))
 
-        # total_frame = len(viewpoint_stack)
-        # time_interval = 1 / total_frame
-        # fid = viewpoint_cam.fid
-
         # Render
         if (iteration - 1) == debug_from:
             pipe.debug = True
@@ -104,7 +96,6 @@ def training(dataset, opt, pipe, testing_iterations, saving_iterations, checkpoi
         target_size = (feature_map_gt.shape[1], feature_map_gt.shape[2])
         feature_map_downsampled = F.interpolate(feature_map.unsqueeze(0), size = target_size, mode='bilinear', align_corners=True).squeeze(0)
         loss_feature = l1_loss(feature_map_downsampled, feature_map_gt)
-        # DEBUG: loss_feature = 0
         print("Got loss feature.")
 
         # Loss

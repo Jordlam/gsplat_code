@@ -71,7 +71,6 @@ class GaussianModel:
             [anchor_weight_init_g0], device="cuda"
         )  # generation 0 begin from weight 0
         self.anchor_weight_init_g0 = anchor_weight_init_g0
-        # self._anchor_loss_schedule[x] = y means weight y will be multiplied to the anchor loss of generation x
         self.max_sh_degree = sh_degree
         self._generation = torch.empty(0)  # begin from 0
         self._xyz = torch.empty(0)
@@ -99,12 +98,10 @@ class GaussianModel:
     
     @property
     def mask(self):
-        # return self.masks[self.current_mask_id]
         return self._mask
 
     @mask.setter
     def mask(self, value):
-        # self.masks[self.current_mask_id] = value
         self._mask = value
 
     def update_anchor_term(self, anchor_weight_init_g0: float,
@@ -217,7 +214,6 @@ class GaussianModel:
             opt_dict,
             self.spatial_lr_scale,
         ) = model_args
-        # self.training_setup(training_args)
         self.xyz_gradient_accum = xyz_gradient_accum
         self.denom = denom
         self.optimizer.load_state_dict(opt_dict)
@@ -317,12 +313,6 @@ class GaussianModel:
         rots = torch.zeros((fused_point_cloud.shape[0], 4), device="cuda")
         rots[:, 0] = 1
 
-        # opacities = inverse_sigmoid(
-        #     1.0
-        #     * torch.ones(
-        #         (fused_point_cloud.shape[0], 1), dtype=torch.float, device="cuda"
-        #     )
-        # )
         opacities = 1.0 * torch.ones(
             (fused_point_cloud.shape[0], 1), dtype=torch.float, device="cuda"
         )
@@ -330,8 +320,6 @@ class GaussianModel:
         # From DGD
         self._semantic_feature = torch.zeros(fused_point_cloud.shape[0], self.semantic_feature_dim, 1).float().cuda()
         self._semantic_feature = nn.Parameter(self._semantic_feature.transpose(1, 2).contiguous().requires_grad_(False))
-        # No gradient required for editing
-        # self._semantic_feature = nn.Parameter(self._semantic_feature.transpose(1, 2).contiguous().requires_grad_(True))
 
         self._xyz = nn.Parameter(fused_point_cloud.requires_grad_(True))
         self._features_dc = nn.Parameter(
@@ -343,10 +331,6 @@ class GaussianModel:
         self._scaling = nn.Parameter(scales.requires_grad_(True))
         self._rotation = nn.Parameter(rots.requires_grad_(True))
 
-        # DEBUG: No need for only changing color
-        # self._scaling = nn.Parameter(scales.requires_grad_(False))
-        # self._rotation = nn.Parameter(rots.requires_grad_(False))
-
         self._opacity = nn.Parameter(opacities.requires_grad_(True))
         self.max_radii2D = torch.zeros((self.get_xyz.shape[0]), device="cuda")
         self.active_sh_degree
@@ -356,7 +340,6 @@ class GaussianModel:
             device="cuda",
             requires_grad=False,
         )  # generation list, begin from zero
-        # Default mask is this:
         self.set_mask(
             torch.ones(
                 self._opacity.shape[0],
@@ -426,13 +409,6 @@ class GaussianModel:
             if param_group["name"] == "xyz":
                 lr = self.xyz_scheduler_args(iteration)
                 param_group["lr"] = lr
-                # print("xyz lr : ", lr)
-            # if param_group["name"] == "f_dc":
-            #     # import pdb; pdb.set_trace()
-            #     param_group['lr'] = param_group['lr'] * ((0.5) ** (1.0 / 1200.0))
-            # if param_group["name"] == "f_rest":
-            #     # import pdb; pdb.set_trace()
-            #     param_group['lr'] = param_group['lr'] * ((0.5) ** (1.0 / 1200.0))
 
     def construct_list_of_attributes(self):
         l = ["x", "y", "z", "nx", "ny", "nz"]
@@ -520,7 +496,6 @@ class GaussianModel:
             if p.name.startswith("f_rest_")
         ]
         extra_f_names = sorted(extra_f_names, key=lambda x: int(x.split("_")[-1]))
-        # assert len(extra_f_names)==3*(self.max_sh_degree + 1) ** 2 - 3
         self.max_sh_degree = int(((len(extra_f_names) + 3) / 3) ** 0.5 - 1)
         features_extra = np.zeros((xyz.shape[0], len(extra_f_names)))
         for idx, attr_name in enumerate(extra_f_names):
@@ -534,7 +509,6 @@ class GaussianModel:
         count = sum(1 for name in plydata.elements[0].data.dtype.names if name.startswith("sem_"))
         semantic_feature = np.stack([np.asarray(plydata.elements[0][f"sem_{i}"]) for i in range(count)], axis=1)
         semantic_feature = np.expand_dims(semantic_feature, axis=-1)
-        # We checked and it looks like none of the semantic features have a NaN value here
 
         scale_names = [
             p.name
@@ -582,16 +556,6 @@ class GaussianModel:
         )
         self._semantic_feature = nn.Parameter(torch.tensor(semantic_feature, dtype=torch.float, device="cuda").transpose(1, 2).contiguous().requires_grad_(False))
 
-
-        # DEBUG: No need for only changing color
-        # self._scaling = nn.Parameter(
-        #     torch.tensor(scales, dtype=torch.float, device="cuda").requires_grad_(False)
-        # )
-        # self._rotation = nn.Parameter(
-        #     torch.tensor(rots, dtype=torch.float, device="cuda").requires_grad_(False)
-        # )
-        # self._semantic_feature = nn.Parameter(torch.tensor(semantic_feature, dtype=torch.float, device="cuda").transpose(1, 2).contiguous().requires_grad_(False))
-
         self.active_sh_degree = self.max_sh_degree
         self._generation = torch.zeros(
             self._opacity.shape[0],
@@ -600,7 +564,6 @@ class GaussianModel:
             requires_grad=False,
         )  # generation list, begin from zero
 
-        # Default mask is this:
         self.set_mask(
             torch.ones(
                 self._opacity.shape[0],
@@ -911,7 +874,6 @@ class GaussianModel:
     def apply_grad_mask(self, mask):
         assert mask.shape[0] == self._xyz.shape[0]
         self.set_mask(mask)
-        # self.hash_mask(mask, self.current_mask_id)
 
         def hook(grad):
             masker = self.mask[:, None] if grad.ndim == 2 else self.mask[:, None, None]
@@ -928,7 +890,6 @@ class GaussianModel:
             self.hooks.append(this_field.register_hook(hook))
 
     def remove_grad_mask(self):
-        # assert hasattr(self, "hooks")
         for hook in self.hooks:
             hook.remove()
 
@@ -965,7 +926,6 @@ class GaussianModel:
         true_indices = torch.nonzero(in_bbox)
         true_indices = true_indices[valid_mask, 0]
         mask_to_update[true_indices] = True
-        # valid_remaining_idx = remaining_idx[valid_mask]
 
         return mask_to_update
 

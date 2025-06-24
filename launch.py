@@ -140,9 +140,6 @@ def main(args, extras) -> None:
                 dirpath=os.path.join(cfg.trial_dir, "ckpts"), **cfg.checkpoint
             ),
             LearningRateMonitor(logging_interval="step"),
-            # CodeSnapshotCallback(
-            #     os.path.join(cfg.trial_dir, "code"), use_version=False
-            # ),
             ConfigSnapshotCallback(
                 args.config,
                 cfg,
@@ -197,11 +194,6 @@ def main(args, extras) -> None:
 
     if args.train:
         trainer.fit(system, datamodule=dm, ckpt_path=cfg.resume)
-        # DEBUGGING don't do below
-        # trainer.test(system, datamodule=dm)
-        # if args.gradio:
-        #     # also export assets if in gradio mode
-        #     trainer.predict(system, datamodule=dm)
     elif args.validate:
         # manually set epoch and global_step as they cannot be automatically resumed
         set_system_status(system, cfg.resume)

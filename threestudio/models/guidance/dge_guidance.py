@@ -34,7 +34,6 @@ class DGEGuidance(BaseObject):
         grad_clip: Optional[
             Any
         ] = None  # field(default_factory=lambda: [0, 2.0, 8.0, 1000])
-        # half_precision_weights: bool = True
         half_precision_weights: bool = False
         fixed_size: int = -1
 
@@ -52,10 +51,6 @@ class DGEGuidance(BaseObject):
         self.weights_dtype = (
             torch.float16 if self.cfg.half_precision_weights else torch.float32
         )
-        # self.weights_dtype = (
-        #     torch.float32
-        # )
-        # print(self.weights_dtype, "Weights are type")
 
         pipe_kwargs = {
             "safety_checker": None,

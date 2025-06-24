@@ -114,7 +114,6 @@ class C2W_Camera(nn.Module):
                  ):
         super(C2W_Camera, self).__init__()
         FoVx = focal2fov(fov2focal(FoVy, height), width)
-        # FoVx = focal2fov(fov2focal(FoVy, width), height)
 
         R = c2w[:3, :3]
         T = c2w[:3, 3]
@@ -146,7 +145,6 @@ class C2W_Camera(nn.Module):
         self.projection_matrix = getProjectionMatrix(znear=self.znear, zfar=self.zfar, fovX=self.FoVx, fovY=self.FoVy).transpose(0,1).float().cuda()
         self.full_proj_transform = (self.world_view_transform.unsqueeze(0).bmm(self.projection_matrix.unsqueeze(0))).squeeze(0).float()
         self.camera_center = self.world_view_transform.inverse()[3, :3].float()
-        # print('self.camera_center',self.camera_center)
 
 class MiniCam:
     def __init__(self, width, height, fovy, fovx, znear, zfar, world_view_transform, full_proj_transform):

@@ -47,7 +47,6 @@ class Scene:
             scene_info = sceneLoadTypeCallbacks["Blender"](args.source_path, args.white_background, args.eval)
         elif os.path.exists(os.path.join(args.source_path, "dataset.json")):
             print("Found dataset.json file, assuming Nerfies data set!")
-            # scene_info = sceneLoadTypeCallbacks["nerfies"](args.source_path, args.eval, args.ratio)
             scene_info = sceneLoadTypeCallbacks["nerfies"](args.source_path, args.eval)
         else:
             assert False, "Could not recognize scene type!"

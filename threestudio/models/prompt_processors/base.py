@@ -305,31 +305,6 @@ class PromptProcessor(BaseObject):
             f"Using prompt [{self.prompt}] and negative prompt [{self.negative_prompt}]"
         )
 
-        # # view-dependent prompting
-        # if self.cfg.use_prompt_debiasing:
-        #     assert (
-        #         self.cfg.prompt_side is None
-        #         and self.cfg.prompt_back is None
-        #         and self.cfg.prompt_overhead is None
-        #     ), "Do not manually assign prompt_side, prompt_back or prompt_overhead when using prompt debiasing"
-        #     prompts = self.get_debiased_prompt(self.prompt)
-        #     self.prompts_vd = [
-        #         d.prompt(prompt) for d, prompt in zip(self.directions, prompts)
-        #     ]
-        # else:
-        #     self.prompts_vd = [
-        #         self.cfg.get(f"prompt_{d.name}", None) or d.prompt(self.prompt)  # type: ignore
-        #         for d in self.directions
-        #     ]
-
-        # prompts_vd_display = " ".join(
-        #     [
-        #         f"[{d.name}]:[{prompt}]"
-        #         for prompt, d in zip(self.prompts_vd, self.directions)
-        #     ]
-        # )
-        # threestudio.info(f"Using view-dependent prompts {prompts_vd_display}")
-
         # Bypass
         self.prompts_vd = []
 
@@ -398,9 +373,6 @@ class PromptProcessor(BaseObject):
         self.uncond_text_embeddings = self.load_from_cache(self.negative_prompt)[
             None, ...
         ]
-        # self.text_embeddings_vd = torch.stack(
-        #     [self.load_from_cache(prompt) for prompt in self.prompts_vd], dim=0
-        # )
         self.text_embeddings_vd = []
         self.uncond_text_embeddings_vd = torch.stack(
             [self.load_from_cache(prompt) for prompt in self.negative_prompts_vd], dim=0

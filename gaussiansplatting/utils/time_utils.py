@@ -100,8 +100,6 @@ class DeformNetwork(nn.Module):
             self.gaussian_warp = nn.Linear(W, 3)
         self.gaussian_rotation = nn.Linear(W, 4)
         self.gaussian_scaling = nn.Linear(W, 3)
-        #self.gaussian_sementic_dino = nn.Linear(W, feature_dino_dim)
-        #self.gaussian_sementic_clip = nn.Linear(W, feature_clip_dim)
 
     def forward(self, x, t):
         t_emb = self.embed_time_fn(t)
@@ -109,7 +107,6 @@ class DeformNetwork(nn.Module):
             t_emb = self.timenet(t_emb)  # better for D-NeRF Dataset
         x_emb = self.embed_fn(x)
         h = torch.cat([x_emb, t_emb], dim=-1)
-        # TODO bug here?
         for i, l in enumerate(self.linear):
             h = self.linear[i](h)
             h = F.relu(h)
@@ -128,7 +125,5 @@ class DeformNetwork(nn.Module):
             d_xyz = self.gaussian_warp(h)
         scaling = self.gaussian_scaling(h)
         rotation = self.gaussian_rotation(h)
-        #sementic_dino = self.gaussian_sementic_dino(h)
-        #sementic_clip = self.gaussian_sementic_clip(h)
 
         return d_xyz, rotation, scaling #, sementic_dino, sementic_clip

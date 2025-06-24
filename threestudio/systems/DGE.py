@@ -37,11 +37,6 @@ class DGE(BaseLift3DSystem):
         ratio: int = 1
         points: str = ""
         thetas: str = ""
-        # i.e.
-        # self.segmentations = {
-        #     "cookie": ([(540, 740)], [0.55]),
-        #     "broom": ([(600, 1080)], [0.85])
-        # }
 
         per_editing_step: int = -1
         edit_begin_step: int = 0
@@ -63,8 +58,6 @@ class DGE(BaseLift3DSystem):
         mask_thres: float = 0.5
         max_grad: float = 1e-7
         min_opacity: float = 0.005
-
-        # seg_prompt: str = ""
 
         # cache
         cache_overwrite: bool = True
@@ -157,20 +150,7 @@ class DGE(BaseLift3DSystem):
             query_feature = self.get_feature(points[i][0], points[i][1], view, self.gaussian, self.pipe, self.background_tensor, 1.0,
                                         semantic_features[:,0,:], d_xyz, d_rotation, d_scaling, patch = (10, 10))
             mask = self.calculate_selection_score_DINOv2(semantic_features, query_feature, score_threshold = thetas[i])
-
-            # DEBUG mask step
-            indices = np.where(mask.cpu().numpy() >= thetas[i])[0]
-            # print("Using indices of shape: ", indices.shape)
-            # print("Before zeroing, shapes are: ", self.gaussian._features_dc.shape, self.gaussian._features_rest.shape)
-            # self.gaussian._features_dc[indices, :, :] = RGB2SH(torch.tensor([0, 0, 0], device="cuda"))
-            # self.gaussian._features_rest[indices, :, :] = RGB2SH(0)
-            # print("After zeroing, shapes are: ", self.gaussian._features_dc.shape, self.gaussian._features_rest.shape)
-
-            # indices_to_mask = np.where(mask.cpu().numpy() >= thetas[i])[0]
-            # The indices_to_mask are just the indices and not the mask itself
             mask = (mask.cpu() >= thetas[i]).to("cuda").requires_grad_(False)
-            # mask = (mask.cpu() >= thetas[i]).to("cuda")
-            # self.gaussian.current_mask_id = fid # Not using this currently
             self.gaussian.apply_grad_mask(mask)
             #---end mask rendering---#
 
@@ -222,7 +202,6 @@ class DGE(BaseLift3DSystem):
             with torch.no_grad():
                 d_xyz, d_rotation, d_scaling = self.deform.step(xyz.detach(), time_input)
 
-            # render_pkg = render(cam, self.gaussian, self.pipe, renderbackground)
             render_pkg = render(cam, self.gaussian, self.pipe, renderbackground, d_xyz, d_rotation, d_scaling)
             image, viewspace_point_tensor, _, radii = (
                 render_pkg["render"],
@@ -320,7 +299,6 @@ class DGE(BaseLift3DSystem):
                 self.origin_frames[id] = torch.tensor(
                     cached_image / 255, device="cuda", dtype=torch.float32
                 )[None]
-        # self.rendered_all_view = True
 
     def on_before_optimizer_step(self, optimizer):
         with torch.no_grad():
@@ -580,9 +558,6 @@ class DGE(BaseLift3DSystem):
         return ret
     
     def edit_all_view(self, original_render_name, cache_name, update_camera=False, global_step=0):
-        # if self.true_global_step >= self.cfg.camera_update_per_step * 2:
-        #     self.guidance.use_normal_unet()
-        
         self.edited_cams = []
         if update_camera:
             self.trainer.datamodule.train_dataset.update_cameras(random_seed = global_step + 1)
@@ -630,9 +605,6 @@ class DGE(BaseLift3DSystem):
                 frame_t = torch.tensor(
                     cached_image / 255, device="cuda", dtype=torch.float32
                 )[None]
-                # self.origin_frames[id] = torch.tensor(
-                #     cached_image / 255, device="cuda", dtype=torch.float32
-                # )[None]
                 self.origin_frames[id] = frame_t
                 original_frames.append(self.origin_frames[id])
             images = torch.cat(images, dim=0)
@@ -664,33 +636,13 @@ class DGE(BaseLift3DSystem):
         return sorted_cam_idx
 
     def on_fit_start(self) -> None:
-        # START HERE
         super().on_fit_start()
         print("Rendering all views...")
         self.render_all_view(cache_name="origin_render")
-        # render_all_view just renders all the dataset images (without editing) and saves them to the cache
-        # note: it is called "view" here because each image in the dataset is a view of the scene
 
         if self.cfg.points:
-            # self.update_mask()
-            # self.mask = self.gaussian.masks[self.gaussian.current_mask_id]
-            # over here, just set the current_mask to the first 0
-            
             camera_0 = self.trainer.datamodule.train_dataset.scene.cameras[0]
             self.update_mask(camera_0)
-            # self.combine_mask(self.trainer.datamodule.train_dataset.scene.cameras)
-
-        # update_mask here is a function that uses the text_segmentor to segment the images in the dataset
-        # it then uses the cuda render functions via .apply_weights() to render an image of the black and white mask
-        # the masks then get saved via gaussian.set_mask and gaussian.apply_grad_mask
-        # where the mask is an average of all the calculated masks
-        # where apply_grad_mask is a function that appends hooks to the gradients so they are calculated differently
-        # so basically, the mask makes each parameter of the gaussian model calculate with the mask via the hook
-
-        # TODO let's change it so we get all the masks for each time frame
-        # print("Updating masks...")
-        # if self.cfg.points:
-        #     self.update_masks()
 
         print("Initializing prompt processor...")
         if len(self.cfg.prompt_processor) > 0:
@@ -698,47 +650,14 @@ class DGE(BaseLift3DSystem):
                 self.cfg.prompt_processor
             )
             print(f"Initialized prompt processor with prompt {self.cfg.prompt_processor.prompt}")
-        # this processes the editing prompt (not the segmentation)
-        # for example cfg.prompt_processor is a dictionary like so:
-        # {
-        #   'pretrained_model_name_or_path': 'runwayml/stable-diffusion-v1-5',
-        #   'prompt': 'turn the cookie to red'
-        # }
-        # and cfg.prompt_processor_type is 'stable-diffusion-prompt-processor'
-        # where the class was registered in the dictionary __modules__ using the python decorator
-        # so the default registered classes are found in prompt_processors/__init__.py
-        # Thus, self.prompt_processor is the class __init__ with self.cfg.prompt_processor
 
-        print("Initializing guidance...")
         if self.cfg.loss.lambda_l1 > 0 or self.cfg.loss.lambda_p > 0 or self.cfg.loss.use_sds:
             self.guidance = threestudio.find(self.cfg.guidance_type)(self.cfg.guidance)
-        # this is the editing heuristic
-        # after this on_fit_start, the regular training cycle is called
-        # where the below training_step is called for each batch
-        print("Starting epochs...")
  
     def training_step(self, batch, batch_idx):
         self.batch_idx = batch_idx
-
-        # if self.cfg.points:
-        #     # reset all except default
-        #     for k in [k for k in self.gaussian.masks.keys() if k != "default"]:
-        #         del self.gaussian.masks[k]
-
-            # DEBUG using only one single mask, zero out
-            # with torch.no_grad():
-            #     indices = np.where(self.gaussian.mask.cpu())[0]
-            #     self.gaussian._features_dc[indices] = RGB2SH(torch.tensor([0, 0, 0], device="cuda"))
-
         if self.true_global_step % self.cfg.camera_update_per_step == 0 and self.cfg.guidance_type == 'dge-guidance' and not self.cfg.loss.use_sds:
             self.edit_all_view(original_render_name='origin_render', cache_name="edited_views", update_camera=self.true_global_step >= self.cfg.camera_update_per_step, global_step=self.true_global_step) 
-        # now that on_fit_start has finished, we can edit the rendered views
-        # basically, in self.edit_all_view, the dataset is updated first just in case
-        # then, the forward step is called where the output is a dict pkg with the rendered image and mask as separate
-        # edit_all_view takes these two outputs and multiplies them together
-        # note!!! since the rendered image and rendered mask is needed in edit_all_view, this is why render_all_view and update_mask is called first
-        # the new images are then saved to a new self.edit_frames (so we can view the edit only output)
-        # where each edited image is just an image of the rendered segmentation portion (everything else is masked out)
 
         self.gaussian.update_learning_rate(self.true_global_step)
         batch_index = batch["index"]
@@ -751,12 +670,6 @@ class DGE(BaseLift3DSystem):
                     batch_index[img_index] = self.view_list[img_index]
 
         out = self(batch, local=self.cfg.local_edit)
-        # now, we set the local gaussian_model.localize attribute which is used for the masked rendering
-        # iterating over the views again, the forward method is called once again
-        # such that the render function is called twice as always, but the localize attribute
-        # makes the render only affect the gaussians with the masked indices
-        # the second call the render here is just redundant as the masked masked is just the mask itself
-        # then everything below is just hueristics for loss calculation
 
         images = out["comp_rgb"]
         mask = out["masks"].unsqueeze(-1)
@@ -766,8 +679,6 @@ class DGE(BaseLift3DSystem):
             prompt_utils = self.prompt_processor()
             gt_images = []
             for img_index, cur_index in enumerate(batch_index):
-                # if cur_index not in self.edit_frames:
-                #     # cur_index = self.view_list[0]
                 if (cur_index not in self.edit_frames or (
                         self.cfg.per_editing_step > 0
                         and self.cfg.edit_begin_step
@@ -787,18 +698,10 @@ class DGE(BaseLift3DSystem):
             if self.cfg.use_masked_image:
                 guidance_out = {
                 "loss_l1": torch.nn.functional.l1_loss(images * mask, gt_images * mask),
-                # "loss_p": self.perceptual_loss(
-                #     (images * mask).permute(0, 3, 1, 2).contiguous(),
-                #     (gt_images * mask ).permute(0, 3, 1, 2).contiguous(),
-                # ).sum(),
                 } 
             else:
                 guidance_out = {
                     "loss_l1": torch.nn.functional.l1_loss(images, gt_images),
-                    # "loss_p": self.perceptual_loss(
-                    #     images.permute(0, 3, 1, 2).contiguous(),
-                    #     gt_images.permute(0, 3, 1, 2).contiguous(),
-                    # ).sum(),
                 }
             for name, value in guidance_out.items():
                 self.log(f"train/{name}", value)
@@ -852,48 +755,14 @@ class DGE(BaseLift3DSystem):
         plt.savefig(os.path.join(path, f"{name}/{self.batch_idx}.png"))
         plt.close()
 
-        # plt.figure(figsize=(8,6))
-        # plt.add_subplot(111, projection='3d')
-        # plt.plot_surface(x, y, z, facecolors=colors, linewidth=0, antialiased=False)
-        # plt.colorbar()
-        # plt.title(f"Gradient Norm: {name}")
-        # plt.xlabel("X axis")
-        # plt.ylabel("Y axis")
-        # plt.zlabel("Z axis")
-
     # Debugging
     def backward(self, loss):
-        # print("We are entering the backward step")
         if loss.isnan() or loss.isinf():
             print("Bad batch found.")
             return
 
         # Don't forget this!
         loss.backward()
-
-        # Printing gradients DEBUG
-        threshold = 1e-6
-        
-        # if self.visualize and self.batch_idx % 10 == 0:
-            # for param in self.gaussian.params_list:
-            #     name = param["name"]
-            #     param = param["params"][0]
-            #     if name == "f_dc":
-            #         param = param.detach().squeeze(1)
-            #     if name == "f_rest":
-            #         param = param.detach().norm(dim=1)
-            #     gauss_params = ["scaling", "rotation", "opacity", "xyz", "f_dc", "f_rest"]
-            #     other_params = ["f_rest"]
-
-            #     if name in gauss_params and param.grad is not None:
-            #         print(f"{name} has shape:", param.grad.shape)
-            #         self.visualize(param.grad.norm(dim=1).cpu().numpy(), name)
-            #     else:
-            #         if param.grad.norm() < threshold:
-            #             print(f"Gradients for {name} are zero.")
-            #         else:
-            #             print(f"Gradients for {name} are non-zero.")
-            # print("\n")
     
     def on_train_end(self):
         print("Training ended.")
